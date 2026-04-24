@@ -20,11 +20,13 @@ import {
 import { db } from '../lib/firebase';
 import { collection, query, orderBy, limit, getDocs } from 'firebase/firestore';
 import { Link } from 'react-router-dom';
+import { useApp } from '../context/AppContext';
 
 export default function Feed() {
   const [posts, setPosts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+  const { settings } = useApp();
 
   useEffect(() => {
     const fetchAllPosts = async () => {
@@ -80,7 +82,7 @@ export default function Feed() {
               animate={{ opacity: 1, y: 0 }}
               className="text-4xl md:text-6xl font-black italic uppercase tracking-tighter text-white mb-2"
             >
-              Explorar <span className="text-primary italic">VidaMixe</span>
+              Explorar <span className="text-primary italic">{settings.appName}</span>
             </motion.h1>
             <p className="text-text/40 font-medium">Descubre el talento y la cultura de nuestra comunidad</p>
           </div>

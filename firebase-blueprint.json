@@ -36,6 +36,39 @@
         "createdAt": { "type": "string", "format": "date-time" }
       },
       "required": ["userId", "url", "type", "createdAt"]
+    },
+    "Message": {
+      "title": "Message",
+      "description": "Chat message",
+      "type": "object",
+      "properties": {
+        "chatId": { "type": "string" },
+        "senderId": { "type": "string" },
+        "text": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["chatId", "senderId", "text", "createdAt"]
+    },
+    "Chat": {
+      "title": "Chat",
+      "description": "Chat room between users",
+      "type": "object",
+      "properties": {
+        "participants": { "type": "array", "items": { "type": "string" } },
+        "lastMessage": { "type": "string" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["participants", "updatedAt"]
+    },
+    "AppConfig": {
+      "title": "AppConfig",
+      "description": "Global application configuration",
+      "type": "object",
+      "properties": {
+        "appName": { "type": "string" },
+        "adminEmails": { "type": "array", "items": { "type": "string" } }
+      },
+      "required": ["appName"]
     }
   },
   "firestore": {
@@ -46,6 +79,18 @@
     "posts/{postId}": {
       "schema": "Post",
       "description": "Collection of media posts"
+    },
+    "chats/{chatId}": {
+      "schema": "Chat",
+      "description": "Collection of chat rooms"
+    },
+    "chats/{chatId}/messages/{messageId}": {
+      "schema": "Message",
+      "description": "Messages within a chat"
+    },
+    "config/app": {
+      "schema": "AppConfig",
+      "description": "Global settings"
     }
   }
 }

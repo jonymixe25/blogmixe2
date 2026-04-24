@@ -10,7 +10,9 @@ import {
   Search, 
   PlusSquare, 
   User, 
-  Compass
+  Compass,
+  MessageCircle,
+  ShieldCheck
 } from 'lucide-react';
 import { motion } from 'motion/react';
 import { useUser } from '../context/UserContext';
@@ -19,11 +21,18 @@ export default function Navigation() {
   const location = useLocation();
   const { user } = useUser();
 
+  const isAdmin = user?.email === 'ayuuktv42@gmail.com';
+
   const navItems = [
     { path: '/feed', icon: Compass, label: 'Explorar' },
+    { path: '/chat', icon: MessageCircle, label: 'Chat' },
     { path: '/publish', icon: PlusSquare, label: 'Publicar' },
     { path: '/profile', icon: User, label: 'Perfil' },
   ];
+
+  if (isAdmin) {
+    navItems.push({ path: '/admin', icon: ShieldCheck, label: 'Admin' });
+  }
 
   // Don't show nav on login/register if not logged in
   if (!user && (location.pathname === '/' || location.pathname === '/register')) {

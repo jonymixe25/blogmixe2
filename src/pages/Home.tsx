@@ -8,6 +8,7 @@ import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { Play, LogIn, UserPlus, X, Eye, EyeOff } from 'lucide-react';
 import { useUser } from '../context/UserContext';
+import { useApp } from '../context/AppContext';
 
 export default function Home() {
   const [showLogin, setShowLogin] = useState(false);
@@ -18,6 +19,7 @@ export default function Home() {
   
   const navigate = useNavigate();
   const { login } = useUser();
+  const { settings } = useApp();
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -45,7 +47,7 @@ export default function Home() {
         className="text-center mb-12 max-w-5xl w-full"
       >
         <div className="flex flex-col md:flex-row items-center justify-between mb-8 md:mb-16 w-full px-4 gap-6">
-          <span className="text-3xl md:text-2xl font-black tracking-tighter text-primary">VIDEOSONIC</span>
+          <span className="text-3xl md:text-2xl font-black tracking-tighter text-primary uppercase">{settings.appName}</span>
           <button
             onClick={() => setShowLogin(true)}
             className="w-full md:w-auto px-8 py-3 bg-surface text-text/80 rounded-xl text-sm font-bold hover:text-text transition-colors border border-white/5 active:scale-95"

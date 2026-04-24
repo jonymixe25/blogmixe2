@@ -60,6 +60,18 @@ if (process.env.NODE_ENV !== "production") {
     appType: "spa",
   });
   app.use(vite.middlewares);
+  // Add a fallback for development as well if needed
+  app.use('*', async (req, res, next) => {
+    if (req.originalUrl.startsWith('/api') || req.originalUrl.startsWith('/uploads')) {
+      return next();
+    }
+    try {
+      const html = fs.readFileSync(path.resolve(__dirname, "index.html"), "utf-8");
+      res.status(200).set({ "Content-Type": "text/html" }).end(html);
+    } catch (e) {
+      next(e);
+    }
+  });
 } else {
   const distPath = path.resolve(__dirname, "dist");
   app.use(express.static(distPath));

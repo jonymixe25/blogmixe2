@@ -8,6 +8,7 @@ import { useNavigate } from 'react-router-dom';
 import { motion } from 'motion/react';
 import { UserPlus, Eye, EyeOff, ArrowLeft, Calendar, Mail, User, Lock } from 'lucide-react';
 import { useUser } from '../context/UserContext';
+import { useApp } from '../context/AppContext';
 
 export default function Register() {
   const [formData, setFormData] = useState({
@@ -24,6 +25,7 @@ export default function Register() {
   
   const navigate = useNavigate();
   const { register } = useUser();
+  const { settings } = useApp();
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -69,7 +71,7 @@ export default function Register() {
         >
           <span className="text-primary font-bold mb-4 block uppercase tracking-widest text-sm">Únete a la comunidad</span>
           <h2 className="text-6xl font-black tracking-tighter mb-6 leading-none">Registro de Usuario</h2>
-          <p className="text-text/50 text-lg max-w-md">Disfruta de la mejor experiencia de streaming con VIDEOSONIC.</p>
+          <p className="text-text/50 text-lg max-w-md">Disfruta de la mejor experiencia de streaming con {settings.appName}.</p>
         </motion.div>
       </div>
 

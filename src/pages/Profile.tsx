@@ -21,15 +21,19 @@ import {
   PlayCircle,
   ImageIcon,
   Download,
-  AlertCircle
+  AlertCircle,
+  Compass,
+  ShieldCheck
 } from 'lucide-react';
 import { useUser } from '../context/UserContext';
+import { useApp } from '../context/AppContext';
 import { useIsMobile } from '../hooks/useIsMobile';
 import { db, auth } from '../lib/firebase';
 import { collection, query, where, orderBy, getDocs } from 'firebase/firestore';
 
 export default function Profile() {
   const { user, logout } = useUser();
+  const { settings } = useApp();
   const navigate = useNavigate();
   const isMobile = useIsMobile();
   const [posts, setPosts] = useState<any[]>([]);
@@ -93,11 +97,14 @@ export default function Profile() {
   const navItems = [
     { label: 'Inicio', icon: <Home size={20} />, path: '/' },
     { label: 'Perfil', icon: <User size={20} />, path: '/profile', active: true },
-    { label: 'Vídeos', icon: <Video size={20} />, path: '#' },
+    { label: 'Explorar', icon: <Compass size={20} />, path: '/feed' },
     { label: 'Publicar', icon: <Upload size={20} />, path: '/publish' },
-    { label: 'Mensajes', icon: <MessageSquare size={20} />, path: '#' },
-    { label: 'Chat', icon: <Hash size={20} />, path: '#' },
+    { label: 'Chat', icon: <MessageSquare size={20} />, path: '/chat' },
   ];
+
+  if (user?.email === 'ayuuktv42@gmail.com') {
+    navItems.push({ label: 'Admin', icon: <Settings size={20} />, path: '/admin' } as any);
+  }
 
   const handleLogout = () => {
     logout();
@@ -111,9 +118,9 @@ export default function Profile() {
         <nav className="w-full md:w-24 lg:w-72 bg-surface border-r border-white/5 flex flex-col p-6 z-10 sticky top-0 h-screen">
           <div className="mb-12 px-2 flex items-center gap-3">
             <div className="w-10 h-10 bg-primary rounded-xl flex items-center justify-center shadow-lg shadow-primary/20">
-              <span className="text-background font-black text-xl">V</span>
+              <span className="text-background font-black text-xl uppercase">{settings.appName.charAt(0)}</span>
             </div>
-            <span className="hidden lg:block font-black text-2xl tracking-tighter text-primary">VIDEOSONIC</span>
+            <span className="hidden lg:block font-black text-2xl tracking-tighter text-primary uppercase">{settings.appName}</span>
           </div>
 
           <div className="flex-1 space-y-3">
@@ -180,9 +187,9 @@ export default function Profile() {
             <div>
               <div className="flex items-center gap-4 md:hidden mb-6">
                 <div className="w-10 h-10 bg-primary rounded-xl flex items-center justify-center shadow-lg shadow-primary/20">
-                  <span className="text-background font-black text-xl">V</span>
+                  <span className="text-background font-black text-xl uppercase">{settings.appName.charAt(0)}</span>
                 </div>
-                <span className="font-black text-2xl tracking-tighter text-primary">VIDEOSONIC</span>
+                <span className="font-black text-2xl tracking-tighter text-primary uppercase">{settings.appName}</span>
               </div>
               <motion.h1 
                 initial={{ opacity: 0, x: -20 }}
@@ -235,6 +242,29 @@ export default function Profile() {
                     <span className="text-[10px] text-text/30 uppercase tracking-[0.2em] font-bold">Siguiendo</span>
                   </div>
                 </div>
+
+                {user.email === 'ayuuktv42@gmail.com' && (
+                  <motion.div 
+                    initial={{ opacity: 0, scale: 0.95 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    className="mt-8 p-8 bg-primary/10 border-2 border-primary/30 rounded-[32px] relative overflow-hidden group cursor-pointer"
+                    onClick={() => navigate('/admin')}
+                  >
+                    <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
+                      <ShieldCheck size={120} className="text-primary" />
+                    </div>
+                    <div className="relative z-10">
+                      <div className="w-12 h-12 bg-primary text-background rounded-2xl flex items-center justify-center mb-4 shadow-lg shadow-primary/20">
+                        <ShieldCheck size={24} />
+                      </div>
+                      <h4 className="text-xl font-black text-primary uppercase tracking-tighter mb-1">Panel de Administración</h4>
+                      <p className="text-primary/60 text-xs font-bold uppercase tracking-widest">Gestionar Usuarios y Contenido</p>
+                      <button className="mt-6 flex items-center gap-2 text-primary font-black uppercase text-[10px] tracking-widest group-hover:gap-4 transition-all">
+                        Entrar al Panel <ChevronRight size={14} />
+                      </button>
+                    </div>
+                  </motion.div>
+                )}
               </div>
             </motion.div>
 
