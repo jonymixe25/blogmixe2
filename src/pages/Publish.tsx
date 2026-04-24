@@ -20,6 +20,10 @@ import {
 import { useUser } from '../context/UserContext';
 import { useIsMobile } from '../hooks/useIsMobile';
 
+import { db, auth, storage } from '../lib/firebase';
+import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
+
 export default function Publish() {
   const { user } = useUser();
   const navigate = useNavigate();
@@ -28,6 +32,7 @@ export default function Publish() {
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [progress, setProgress] = useState(0);
   const [status, setStatus] = useState<'idle' | 'success' | 'error'>('idle');
   const [message, setMessage] = useState('');
   
@@ -43,6 +48,7 @@ export default function Publish() {
       };
       reader.readAsDataURL(selectedFile);
       setStatus('idle');
+      setProgress(0);
     }
   };
 
@@ -52,32 +58,62 @@ export default function Publish() {
 
     setUploading(true);
     setStatus('idle');
+    setProgress(0);
 
     const formData = new FormData();
     formData.append('file', file);
 
-    try {
-      const response = await fetch('/api/upload', {
-        method: 'POST',
-        body: formData,
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        setStatus('success');
-        setMessage('¡Publicación exitosa!');
-        setFile(null);
-        setPreview(null);
-      } else {
-        setStatus('error');
-        setMessage('Error al subir el archivo');
+    // Track progress using XHR because fetch doesn't support progress well for uploads easily
+    const xhr = new XMLHttpRequest();
+    
+    xhr.upload.addEventListener('progress', (event) => {
+      if (event.lengthComputable) {
+        const p = (event.loaded / event.total) * 100;
+        setProgress(p);
       }
-    } catch (error) {
-      setStatus('error');
-      setMessage('Error de conexión');
-    } finally {
-      setUploading(false);
-    }
+    });
+
+    xhr.onreadystatechange = async () => {
+      if (xhr.readyState === XMLHttpRequest.DONE) {
+        if (xhr.status === 200) {
+          try {
+            const data = JSON.parse(xhr.responseText);
+            
+            // Save record to Firestore
+            if (auth.currentUser) {
+              await addDoc(collection(db, 'posts'), {
+                userId: auth.currentUser.uid,
+                url: data.path, // This will be /uploads/filename
+                type: file.type.startsWith('video') ? 'video' : 'image',
+                createdAt: serverTimestamp(),
+                filename: data.filename
+              });
+            }
+
+            setStatus('success');
+            setMessage('¡Publicación exitosa en el servidor!');
+            setFile(null);
+            setPreview(null);
+            
+            setTimeout(() => navigate('/profile'), 1500);
+          } catch (err) {
+            console.error("Firestore error:", err);
+            setStatus('error');
+            setMessage('Archivo subido, pero error al guardar record en base de datos');
+          } finally {
+            setUploading(false);
+          }
+        } else {
+          console.error("Upload error:", xhr.statusText);
+          setStatus('error');
+          setMessage(`Error al subir el archivo (Status ${xhr.status}). Asegúrate de que el servidor acepte subidas.`);
+          setUploading(false);
+        }
+      }
+    };
+
+    xhr.open('POST', '/api/upload', true);
+    xhr.send(formData);
   };
 
   if (!user || !user.isLoggedIn) {
@@ -179,6 +215,16 @@ export default function Publish() {
                 )}
               </AnimatePresence>
             </div>
+
+            {uploading && (
+              <div className="w-full bg-white/5 rounded-full h-2 overflow-hidden">
+                <motion.div 
+                  className="bg-primary h-full"
+                  initial={{ width: 0 }}
+                  animate={{ width: `${progress}%` }}
+                />
+              </div>
+            )}
 
             {status === 'success' && (
               <motion.div 

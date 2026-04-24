@@ -3,50 +3,87 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { createContext, useContext, useState, ReactNode } from 'react';
+import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
 import { UserData } from '../types';
+import { auth, db } from '../lib/firebase';
+import { 
+  onAuthStateChanged, 
+  createUserWithEmailAndPassword, 
+  signInWithEmailAndPassword, 
+  signOut,
+  User as FirebaseUser
+} from 'firebase/auth';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
 
 interface UserContextType {
   user: UserData | null;
-  register: (data: Omit<UserData, 'isLoggedIn'>) => void;
-  login: (email: string, pass: string) => boolean;
-  logout: () => void;
+  loading: boolean;
+  register: (data: Omit<UserData, 'isLoggedIn'>, password: string) => Promise<void>;
+  login: (email: string, pass: string) => Promise<void>;
+  logout: () => Promise<void>;
 }
 
 const UserContext = createContext<UserContextType | undefined>(undefined);
 
 export function UserProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<UserData | null>(null);
+  const [loading, setLoading] = useState(true);
 
-  const register = (data: Omit<UserData, 'isLoggedIn'>) => {
-    setUser({ ...data, isLoggedIn: true });
-  };
-
-  const login = (email: string, pass: string) => {
-    // Basic mock login - just checks if email matches registered email or is "demo@test.com"
-    if ((user && user.email === email) || email === 'demo@test.com') {
-      if (user) {
-        setUser({ ...user, isLoggedIn: true });
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+      if (firebaseUser) {
+        const userDoc = await getDoc(doc(db, 'users', firebaseUser.uid));
+        if (userDoc.exists()) {
+          setUser({ ...userDoc.data() as UserData, isLoggedIn: true });
+        } else {
+          // Fallback if doc doesn't exist but user is authed (shouldn't happen with our flow)
+          setUser({
+            fullName: firebaseUser.displayName || 'Usuario',
+            email: firebaseUser.email || '',
+            birthDate: '',
+            isLoggedIn: true
+          });
+        }
       } else {
-        setUser({
-          fullName: 'Usuario Demo',
-          email: 'demo@test.com',
-          birthDate: '1995-01-01',
-          isLoggedIn: true
-        });
+        setUser(null);
       }
-      return true;
-    }
-    return false;
+      setLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  const register = async (data: Omit<UserData, 'isLoggedIn'>, password: string) => {
+    const userCredential = await createUserWithEmailAndPassword(auth, data.email, password);
+    const firebaseUser = userCredential.user;
+    
+    const userData: UserData = {
+      ...data,
+      isLoggedIn: true
+    };
+
+    await setDoc(doc(db, 'users', firebaseUser.uid), {
+      fullName: data.fullName,
+      email: data.email,
+      birthDate: data.birthDate,
+      profilePic: data.profilePic || `https://api.dicebear.com/7.x/avataaars/svg?seed=${data.email}`
+    });
+
+    setUser(userData);
   };
 
-  const logout = () => {
-    if (user) setUser({ ...user, isLoggedIn: false });
+  const login = async (email: string, pass: string) => {
+    await signInWithEmailAndPassword(auth, email, pass);
+  };
+
+  const logout = async () => {
+    await signOut(auth);
+    setUser(null);
   };
 
   return (
-    <UserContext.Provider value={{ user, register, login, logout }}>
-      {children}
+    <UserContext.Provider value={{ user, loading, register, login, logout }}>
+      {!loading && children}
     </UserContext.Provider>
   );
 }

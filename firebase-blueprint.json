@@ -1,0 +1,51 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile information",
+      "type": "object",
+      "properties": {
+        "fullName": {
+          "type": "string",
+          "description": "Full name of the user"
+        },
+        "email": {
+          "type": "string",
+          "format": "email",
+          "description": "Primary email address"
+        },
+        "birthDate": {
+          "type": "string",
+          "description": "User's birth date"
+        },
+        "profilePic": {
+          "type": "string",
+          "description": "URL to user's profile picture"
+        }
+      },
+      "required": ["fullName", "email", "birthDate"]
+    },
+    "Post": {
+      "title": "Post",
+      "description": "Uploaded media post",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "url": { "type": "string" },
+        "type": { "type": "string", "enum": ["image", "video"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "url", "type", "createdAt"]
+    }
+  },
+  "firestore": {
+    "users/{userId}": {
+      "schema": "User",
+      "description": "Collection of user profiles"
+    },
+    "posts/{postId}": {
+      "schema": "Post",
+      "description": "Collection of media posts"
+    }
+  }
+}

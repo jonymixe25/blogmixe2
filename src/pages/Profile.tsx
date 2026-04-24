@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { motion } from 'motion/react';
 import { 
@@ -17,21 +17,76 @@ import {
   Mail, 
   Calendar, 
   Hash,
-  ChevronRight
+  ChevronRight,
+  PlayCircle,
+  ImageIcon,
+  Download,
+  AlertCircle
 } from 'lucide-react';
 import { useUser } from '../context/UserContext';
 import { useIsMobile } from '../hooks/useIsMobile';
+import { db, auth } from '../lib/firebase';
+import { collection, query, where, orderBy, getDocs } from 'firebase/firestore';
 
 export default function Profile() {
   const { user, logout } = useUser();
   const navigate = useNavigate();
   const isMobile = useIsMobile();
+  const [posts, setPosts] = useState<any[]>([]);
+  const [loadingPosts, setLoadingPosts] = useState(true);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   useEffect(() => {
     if (!user || !user.isLoggedIn) {
       navigate('/');
     }
   }, [user, navigate]);
+
+  useEffect(() => {
+    const fetchPosts = async () => {
+      if (auth.currentUser) {
+        try {
+          const q = query(
+            collection(db, 'posts'),
+            where('userId', '==', auth.currentUser.uid),
+            orderBy('createdAt', 'desc')
+          );
+          const querySnapshot = await getDocs(q);
+          const fetchedPosts = querySnapshot.docs.map(doc => ({
+            id: doc.id,
+            ...doc.data()
+          }));
+          setPosts(fetchedPosts);
+          setErrorMsg(null);
+        } catch (error: any) {
+          console.error("Error fetching posts:", error);
+          setErrorMsg(error.message || "Error al cargar publicaciones");
+        } finally {
+          setLoadingPosts(false);
+        }
+      }
+    };
+
+    fetchPosts();
+  }, []);
+
+  const handleDownload = async (url: string, filename: string) => {
+    try {
+      const response = await fetch(url);
+      const blob = await response.blob();
+      const blobUrl = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = blobUrl;
+      link.download = filename || 'mi-archivo-vidamixe';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(blobUrl);
+    } catch (error) {
+      console.error("Error downloading:", error);
+      window.open(url, '_blank');
+    }
+  };
 
   if (!user) return null;
 
@@ -233,6 +288,69 @@ export default function Profile() {
                     </div>
                   </div>
                 </div>
+              </div>
+
+              {/* User Posts Gallery */}
+              <div className="glass p-10">
+                <h3 className="text-lg font-bold mb-8 flex items-center justify-between text-text/80 uppercase tracking-widest">
+                  <div className="flex items-center gap-3">
+                    <ImageIcon size={18} className="text-primary" />
+                    Mis Publicaciones
+                  </div>
+                  <span className="text-[10px] bg-white/5 px-2 py-1 rounded-md">{posts.length}</span>
+                </h3>
+
+                {loadingPosts ? (
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 animate-pulse">
+                    {[1, 2, 3].map(n => (
+                      <div key={n} className="aspect-square bg-white/5 rounded-xl" />
+                    ))}
+                  </div>
+                ) : errorMsg ? (
+                  <div className="text-center py-12 border-2 border-dashed border-red-500/10 rounded-2xl">
+                    <AlertCircle className="mx-auto mb-4 text-red-500/40" size={32} />
+                    <p className="text-red-500/60 font-bold mb-4">{errorMsg}</p>
+                    <button onClick={() => window.location.reload()} className="btn-primary text-xs px-6 py-2">Reintentar</button>
+                  </div>
+                ) : posts.length > 0 ? (
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+                    {posts.map((post) => (
+                      <div key={post.id} className="aspect-square bg-background rounded-xl overflow-hidden border border-white/5 relative group cursor-pointer shadow-lg">
+                         {post.type === 'video' ? (
+                           <div className="w-full h-full flex items-center justify-center bg-black/40">
+                             <Video className="text-text/20 group-hover:text-primary transition-colors" size={32} />
+                             <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/20">
+                               <PlayCircle className="text-white" size={40} />
+                             </div>
+                           </div>
+                         ) : (
+                           <img src={post.url} alt="Post" className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
+                         )}
+                         <div className="absolute top-2 right-2 flex gap-1">
+                           <button 
+                             onClick={(e) => {
+                               e.stopPropagation();
+                               handleDownload(post.url, post.filename);
+                             }}
+                             className="bg-black/60 backdrop-blur-md text-white p-1.5 rounded-full hover:bg-primary hover:text-background transition-colors"
+                             title="Descargar"
+                           >
+                             <Download size={12} />
+                           </button>
+                           <span className="bg-black/60 backdrop-blur-md text-[8px] text-white px-2 py-0.5 rounded-full font-bold uppercase flex items-center">
+                             {post.type}
+                           </span>
+                         </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-12 border-2 border-dashed border-white/5 rounded-2xl">
+                    <Upload className="mx-auto mb-4 text-text/20" size={32} />
+                    <p className="text-text/40 font-bold mb-4">Aún no has publicado nada</p>
+                    <Link to="/publish" className="btn-primary text-xs px-6 py-2">Subir mi primer video</Link>
+                  </div>
+                )}
               </div>
 
               {/* Activity Section */}

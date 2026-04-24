@@ -30,7 +30,7 @@ export default function Register() {
     if (error) setError('');
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (formData.password !== formData.confirmPassword) {
@@ -38,14 +38,19 @@ export default function Register() {
       return;
     }
     
-    // Simulate registration
-    register({
-      fullName: formData.fullName,
-      email: formData.email,
-      birthDate: formData.birthDate,
-    });
-    
-    navigate('/profile');
+    try {
+      setError('');
+      await register({
+        fullName: formData.fullName,
+        email: formData.email,
+        birthDate: formData.birthDate,
+      }, formData.password);
+      
+      navigate('/profile');
+    } catch (err) {
+      setError('Error al registrar usuario. Email podría estar en uso.');
+      console.error(err);
+    }
   };
 
   return (

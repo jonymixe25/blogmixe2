@@ -19,12 +19,15 @@ export default function Home() {
   const navigate = useNavigate();
   const { login } = useUser();
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (login(email, password)) {
+    try {
+      setError('');
+      await login(email, password);
       navigate('/profile');
-    } else {
-      setError('Credenciales incorrectas');
+    } catch (err) {
+      setError('Credenciales incorrectas o error de conexión');
+      console.error(err);
     }
   };
 
@@ -72,6 +75,13 @@ export default function Home() {
           >
             <UserPlus size={22} />
             <span>Crear Cuenta Gratis</span>
+          </button>
+          <button
+            onClick={() => navigate('/feed')}
+            className="btn-outline w-full sm:w-auto flex items-center justify-center gap-3 text-lg px-10 py-5"
+          >
+            <Play size={22} fill="currentColor" />
+            <span>Ver Publicaciones</span>
           </button>
         </div>
       </motion.div>
