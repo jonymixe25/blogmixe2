@@ -54,44 +54,43 @@ export default function Publish() {
 
   const handleUpload = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!file) return;
+    if (!file || !auth.currentUser) return;
 
     setUploading(true);
     setStatus('idle');
     setProgress(0);
 
-    const formData = new FormData();
-    formData.append('file', file);
+    try {
+      const fileName = `${Date.now()}-${file.name}`;
+      const storageRef = ref(storage, `posts/${auth.currentUser.uid}/${fileName}`);
+      const uploadTask = uploadBytesResumable(storageRef, file);
 
-    // Track progress using XHR because fetch doesn't support progress well for uploads easily
-    const xhr = new XMLHttpRequest();
-    
-    xhr.upload.addEventListener('progress', (event) => {
-      if (event.lengthComputable) {
-        const p = (event.loaded / event.total) * 100;
-        setProgress(p);
-      }
-    });
-
-    xhr.onreadystatechange = async () => {
-      if (xhr.readyState === XMLHttpRequest.DONE) {
-        if (xhr.status === 200) {
+      uploadTask.on('state_changed', 
+        (snapshot) => {
+          const p = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+          setProgress(p);
+        }, 
+        (error) => {
+          console.error("Upload error:", error);
+          setStatus('error');
+          setMessage('Error al subir a Firebase Storage. Verifica los permisos.');
+          setUploading(false);
+        }, 
+        async () => {
+          const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
+          
           try {
-            const data = JSON.parse(xhr.responseText);
-            
             // Save record to Firestore
-            if (auth.currentUser) {
-              await addDoc(collection(db, 'posts'), {
-                userId: auth.currentUser.uid,
-                url: data.path, // This will be /uploads/filename
-                type: file.type.startsWith('video') ? 'video' : 'image',
-                createdAt: serverTimestamp(),
-                filename: data.filename
-              });
-            }
+            await addDoc(collection(db, 'posts'), {
+              userId: auth.currentUser!.uid,
+              url: downloadURL,
+              type: file.type.startsWith('video') ? 'video' : 'image',
+              createdAt: serverTimestamp(),
+              filename: fileName
+            });
 
             setStatus('success');
-            setMessage('¡Publicación exitosa en el servidor!');
+            setMessage('¡Publicación exitosa!');
             setFile(null);
             setPreview(null);
             
@@ -99,21 +98,18 @@ export default function Publish() {
           } catch (err) {
             console.error("Firestore error:", err);
             setStatus('error');
-            setMessage('Archivo subido, pero error al guardar record en base de datos');
+            setMessage('Archivo subido, pero hubo un error al guardar en la base de datos.');
           } finally {
             setUploading(false);
           }
-        } else {
-          console.error("Upload error:", xhr.statusText);
-          setStatus('error');
-          setMessage(`Error al subir el archivo (Status ${xhr.status}). Asegúrate de que el servidor acepte subidas.`);
-          setUploading(false);
         }
-      }
-    };
-
-    xhr.open('POST', '/api/upload', true);
-    xhr.send(formData);
+      );
+    } catch (error) {
+      console.error("Critical upload error:", error);
+      setStatus('error');
+      setMessage('Error crítico durante la subida.');
+      setUploading(false);
+    }
   };
 
   if (!user || !user.isLoggedIn) {
