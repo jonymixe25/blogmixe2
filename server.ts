@@ -28,6 +28,16 @@ if (!fs.existsSync(uploadsDir)) {
   fs.mkdirSync(uploadsDir, { recursive: true });
 }
 
+// Test write access to uploads directory
+try {
+  const testFile = path.join(uploadsDir, ".write-test");
+  fs.writeFileSync(testFile, "test");
+  fs.unlinkSync(testFile);
+  console.log("Uploads directory is writable");
+} catch (err) {
+  console.error("WARNING: Uploads directory is NOT writable:", err);
+}
+
 // Multer configuration
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
@@ -45,14 +55,26 @@ const upload = multer({
 });
 
 // API routes
-app.post("/api/upload", upload.single("file"), (req, res) => {
-  if (!req.file) {
-    return res.status(400).json({ error: "No file uploaded" });
-  }
-  res.json({ 
-    message: "File uploaded successfully", 
-    filename: req.file.filename,
-    path: `/uploads/${req.file.filename}` 
+app.post("/api/upload", (req, res, next) => {
+  upload.single("file")(req, res, (err) => {
+    if (err instanceof multer.MulterError) {
+      console.error("Multer error:", err);
+      return res.status(400).json({ error: `Multer upload error: ${err.message}` });
+    } else if (err) {
+      console.error("Unknown upload error:", err);
+      return res.status(500).json({ error: `Upload error: ${err.message}` });
+    }
+
+    if (!req.file) {
+      return res.status(400).json({ error: "No file uploaded" });
+    }
+
+    console.log("File uploaded successfully:", req.file.filename);
+    res.json({ 
+      message: "File uploaded successfully", 
+      filename: req.file.filename,
+      path: `/uploads/${req.file.filename}` 
+    });
   });
 });
 

@@ -79,39 +79,52 @@ export default function Publish() {
 
       xhr.addEventListener('load', async () => {
         if (xhr.status >= 200 && xhr.status < 300) {
-          const response = JSON.parse(xhr.responseText);
-          const localUrl = response.path;
-          
           try {
-            // Save record to Firestore (still using Firestore for metadata sync)
-            await addDoc(collection(db, 'posts'), {
-              userId: auth.currentUser!.uid,
-              userName: user?.fullName || 'Usuario',
-              title: title || 'Sin título',
-              category: category,
-              url: localUrl,
-              type: file.type.startsWith('video') ? 'video' : 'image',
-              createdAt: serverTimestamp(),
-              filename: response.filename,
-              likes: 0
-            });
-
-            setStatus('success');
-            setMessage('¡Publicación exitosa! Guardado en almacenamiento local.');
-            setFile(null);
-            setPreview(null);
+            const response = JSON.parse(xhr.responseText);
+            const localUrl = response.path;
             
-            setTimeout(() => navigate('/profile'), 1500);
-          } catch (err) {
-            console.error("Firestore error:", err);
+            try {
+              // Save record to Firestore (still using Firestore for metadata sync)
+              await addDoc(collection(db, 'posts'), {
+                userId: auth.currentUser!.uid,
+                userName: user?.fullName || 'Usuario',
+                title: title || 'Sin título',
+                category: category,
+                url: localUrl,
+                type: file.type.startsWith('video') ? 'video' : 'image',
+                createdAt: serverTimestamp(),
+                filename: response.filename,
+                likes: 0
+              });
+
+              setStatus('success');
+              setMessage('¡Publicación exitosa! Guardado en almacenamiento local.');
+              setFile(null);
+              setPreview(null);
+              
+              setTimeout(() => navigate('/profile'), 1500);
+            } catch (err) {
+              console.error("Firestore error:", err);
+              setStatus('error');
+              setMessage('Archivo subido localmente, pero hubo un error al sincronizar con la nube.');
+            } finally {
+              setUploading(false);
+            }
+          } catch (e) {
+            console.error("Parse error:", e);
             setStatus('error');
-            setMessage('Archivo subido localmente, pero hubo un error al sincronizar con la nube.');
-          } finally {
+            setMessage('Error al procesar la respuesta del servidor.');
             setUploading(false);
           }
         } else {
+          let errorMsg = 'Error al subir al servidor local.';
+          try {
+            const errorRes = JSON.parse(xhr.responseText);
+            if (errorRes.error) errorMsg = errorRes.error;
+          } catch (e) {}
+          
           setStatus('error');
-          setMessage('Error al subir al servidor local.');
+          setMessage(`${errorMsg} (Status: ${xhr.status})`);
           setUploading(false);
         }
       });
