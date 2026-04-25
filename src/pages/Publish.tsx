@@ -24,7 +24,6 @@ import { useUser } from '../context/UserContext';
 import { useIsMobile } from '../hooks/useIsMobile';
 import { db, auth } from '../lib/firebase';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
-import { GoogleGenAI } from '@google/genai';
 
 export default function Publish() {
   const { user } = useUser();
@@ -43,7 +42,7 @@ export default function Publish() {
   const [dragActive, setDragActive] = useState(false);
   
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const categories = ['Tendencias', 'Cultura', 'Música', 'Gaming', 'Arte', 'Vlogs'];
+  const categories = ['TENDENCIAS', 'CULTURA', 'MÚSICA', 'JUEGO DE AZAR', 'ARTE', 'VLOGS'];
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0];
@@ -174,12 +173,15 @@ export default function Publish() {
     if (!category || suggesting) return;
     setSuggesting(true);
     try {
-      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || '' });
-      const model = ai.getGenerativeModel({ model: "gemini-3-flash-preview" });
-      const prompt = `Sugiere un título corto, viral y creativo para un post de la categoría "${category}" en una app de estilo de vida mixe. Solo dame el título, sin comillas ni explicaciones.`;
-      const result = await model.generateContent(prompt);
-      const text = result.response.text().trim();
-      if (text) setTitle(text);
+      const response = await fetch('/api/ai/suggest-title', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ category })
+      });
+      const data = await response.json();
+      if (data.suggestion) {
+        setTitle(data.suggestion);
+      }
     } catch (err) {
       console.error("Gemini error:", err);
     } finally {

@@ -1,5 +1,5 @@
 {
-  "name": "VidaM",
+  "name": "VidaMixe",
   "description": "Plataforma de streaming comunitaria con registro de usuarios, perfiles personalizados, chat en tiempo real y panel de administración.",
   "requestFramePermissions": [
     "camera",

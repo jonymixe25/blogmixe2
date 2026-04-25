@@ -34,16 +34,16 @@ export default function Navigation() {
   const isAdmin = ['ayuuktv42@gmail.com', 'ayuuk42@gmail.com'].includes(user?.email?.toLowerCase().trim() || '') || ['ayuuktv42@gmail.com', 'ayuuk42@gmail.com'].includes(auth.currentUser?.email?.toLowerCase().trim() || '');
 
   const navItems = [
-    { path: '/', icon: Home, label: 'Inicio' },
-    { path: '/feed', icon: Compass, label: 'Explorar' },
-    { path: '/chat', icon: MessageCircle, label: 'Chat' },
-    { path: '/publish', icon: PlusSquare, label: 'Publicar' },
-    { path: '/profile', icon: User, label: 'Perfil' },
+    { path: '/', icon: Home, label: 'INICIO' },
+    { path: '/feed', icon: Compass, label: 'EXPLORADOR' },
+    { path: '/chat', icon: MessageCircle, label: 'CHARLAR' },
+    { path: '/publish', icon: PlusSquare, label: 'PUBLICAR' },
+    { path: '/profile', icon: User, label: 'PERFIL' },
   ];
 
   if (isAdmin) {
-    navItems.push({ path: '/admin', icon: ShieldCheck, label: 'Admin' });
-    navItems.push({ path: '/local-db', icon: HardDrive, label: 'Disco Local' });
+    navItems.push({ path: '/admin', icon: ShieldCheck, label: 'ADMINISTRACIÓN' });
+    navItems.push({ path: '/local-db', icon: HardDrive, label: 'DISCOTECA LOCAL' });
   }
 
   const handleLogout = async () => {

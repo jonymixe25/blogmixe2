@@ -13,8 +13,14 @@ import fs from "fs";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+import { GoogleGenAI } from "@google/genai";
+
 const app = express();
 const PORT = 3000;
+
+// Gemini setup
+const genAI = new GoogleGenAI(process.env.GEMINI_API_KEY || "");
+const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
 // Middleware
 app.use(express.json());
@@ -55,8 +61,12 @@ const upload = multer({
 });
 
 // API routes
+app.get("/api/ping", (req, res) => {
+  res.json({ message: "pong", status: "active", time: new Date().toISOString() });
+});
+
 app.use("/api", (req, res, next) => {
-  console.log(`API Request: ${req.method} ${req.url}`);
+  console.log(`[API] ${req.method} ${req.url}`);
   next();
 });
 
@@ -134,6 +144,22 @@ app.delete("/api/local/data/:key", (req, res) => {
     res.json({ message: "Data deleted successfully" });
   } catch (err) {
     res.status(500).json({ error: "Failed to delete local data" });
+  }
+});
+
+// Gemini Suggestion Route
+app.post("/api/ai/suggest-title", async (req, res) => {
+  const { category } = req.body;
+  if (!category) return res.status(400).json({ error: "Category is required" });
+
+  try {
+    const prompt = `Sugiere un título corto, viral y creativo para un post de la categoría "${category}" en una app de estilo de vida mixe. Solo dame el título, sin comillas ni explicaciones.`;
+    const result = await model.generateContent(prompt);
+    const text = result.response.text().trim();
+    res.json({ suggestion: text });
+  } catch (err) {
+    console.error("Gemini Error:", err);
+    res.status(500).json({ error: "Failed to generate suggestion" });
   }
 });
 
