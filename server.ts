@@ -16,6 +16,12 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const PORT = 3000;
 
+// Middleware
+app.use(express.json());
+
+// Local Database initialization
+import localDb from "./src/lib/localDb.js"; // tsx allows importing .ts with .js extension or just .ts
+
 // Ensure uploads directory exists
 const uploadsDir = path.resolve(__dirname, "uploads");
 if (!fs.existsSync(uploadsDir)) {
@@ -48,6 +54,59 @@ app.post("/api/upload", upload.single("file"), (req, res) => {
     filename: req.file.filename,
     path: `/uploads/${req.file.filename}` 
   });
+});
+
+// Local Database Routes
+app.get("/api/local/files", (req, res) => {
+  try {
+    const files = fs.readdirSync(uploadsDir);
+    const stats = files.map(file => {
+      const s = fs.statSync(path.join(uploadsDir, file));
+      return {
+        name: file,
+        size: s.size,
+        mtime: s.mtime,
+        path: `/uploads/${file}`
+      };
+    });
+    res.json(stats);
+  } catch (err) {
+    res.status(500).json({ error: "Failed to list files" });
+  }
+});
+
+app.get("/api/local/data", (req, res) => {
+  try {
+    const rows = localDb.prepare("SELECT * FROM local_storage ORDER BY updated_at DESC").all();
+    res.json(rows);
+  } catch (err) {
+    res.status(500).json({ error: "Failed to fetch local data" });
+  }
+});
+
+app.post("/api/local/data", (req, res) => {
+  const { key, value } = req.body;
+  if (!key || value === undefined) {
+    return res.status(400).json({ error: "Key and value are required" });
+  }
+  try {
+    const stmt = localDb.prepare("INSERT OR REPLACE INTO local_storage (key, value, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP)");
+    stmt.run(key, typeof value === 'string' ? value : JSON.stringify(value));
+    res.json({ message: "Data saved successfully" });
+  } catch (err) {
+    res.status(500).json({ error: "Failed to save local data" });
+  }
+});
+
+app.delete("/api/local/data/:key", (req, res) => {
+  const { key } = req.params;
+  try {
+    const stmt = localDb.prepare("DELETE FROM local_storage WHERE key = ?");
+    stmt.run(key);
+    res.json({ message: "Data deleted successfully" });
+  } catch (err) {
+    res.status(500).json({ error: "Failed to delete local data" });
+  }
 });
 
 // Serve static files from uploads

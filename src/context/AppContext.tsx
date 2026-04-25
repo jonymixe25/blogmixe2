@@ -9,6 +9,11 @@ import { doc, onSnapshot, setDoc } from 'firebase/firestore';
 
 interface AppSettings {
   appName: string;
+  heroTitle: string;
+  heroSubtitle: string;
+  maintenanceMode: boolean;
+  announcement: string;
+  categories: string[];
 }
 
 interface AppContextType {
@@ -19,14 +24,23 @@ interface AppContextType {
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
+const DEFAULT_SETTINGS: AppSettings = {
+  appName: 'VidaMixe',
+  heroTitle: 'Vida Mixe',
+  heroSubtitle: 'Plataforma de Streaming Comunitario',
+  maintenanceMode: false,
+  announcement: '',
+  categories: ['Tendencias', 'Música', 'Arte', 'Cultura', 'Noticias']
+};
+
 export function AppProvider({ children }: { children: React.ReactNode }) {
-  const [settings, setSettings] = useState<AppSettings>({ appName: 'VidaMixe' });
+  const [settings, setSettings] = useState<AppSettings>(DEFAULT_SETTINGS);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const unsub = onSnapshot(doc(db, 'config', 'app'), (snap) => {
       if (snap.exists()) {
-        setSettings(snap.data() as AppSettings);
+        setSettings({ ...DEFAULT_SETTINGS, ...snap.data() } as AppSettings);
       }
       setLoading(false);
     });

@@ -10,9 +10,12 @@ import {
   MessageCircle, 
   Search, 
   User as UserIcon,
+  PlusSquare,
   ChevronLeft,
   MoreVertical,
-  Circle
+  Circle,
+  X,
+  Video as VideoIcon
 } from 'lucide-react';
 import { db, auth } from '../lib/firebase';
 import { collection, query, orderBy, onSnapshot, addDoc, serverTimestamp, where, limit, doc, getDoc, getDocs, setDoc } from 'firebase/firestore';
@@ -33,6 +36,12 @@ export default function Chat() {
   const [searchTerm, setSearchTerm] = useState('');
   
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  const startVideoCall = () => {
+    if (!selectedChat) return;
+    const otherUserId = selectedChat.participants.find((p: string) => p !== auth.currentUser?.uid);
+    navigate(`/call/${otherUserId}`);
+  };
 
   useEffect(() => {
     if (!user?.isLoggedIn) {
@@ -166,133 +175,162 @@ export default function Chat() {
   if (!user?.isLoggedIn) return null;
 
   return (
-    <div className="flex h-screen bg-background pt-20 pb-20 md:pb-6 px-4 md:px-8 gap-6">
+    <div className="flex h-screen bg-background pt-20 pb-20 md:pb-6 px-4 md:px-8 gap-6 md:pl-32 lg:pl-80 overflow-hidden relative">
+      <div className="absolute top-0 right-0 w-[40vw] h-[40vw] bg-primary/5 blur-[120px] rounded-full pointer-events-none" />
+      
       {/* Sidebar - Chat List */}
-      <div className={`w-full md:w-96 flex flex-col glass overflow-hidden ${selectedChat ? 'hidden md:flex' : 'flex'}`}>
-        <div className="p-6 border-b border-white/5 flex items-center justify-between">
-          <h2 className="text-xl font-bold text-white flex items-center gap-2">
-            <MessageCircle className="text-primary" size={20} />
-            Mensajes
-          </h2>
-          <button 
-            onClick={() => setShowUserSearch(true)}
-            className="p-2 bg-primary/10 text-primary rounded-xl hover:bg-primary hover:text-background transition-all"
-          >
-            <PlusSquareIcon size={20} />
-          </button>
+      <div className={`w-full md:w-96 flex flex-col glass overflow-hidden rounded-[32px] border border-white/5 relative z-10 ${selectedChat ? 'hidden md:flex' : 'flex'}`}>
+        <div className="p-8 border-b border-white/5">
+          <div className="flex items-center justify-between mb-2">
+            <h2 className="text-2xl font-display font-black text-white uppercase tracking-tighter flex items-center gap-3">
+              <MessageCircle className="text-primary" size={24} />
+              Chats
+            </h2>
+            <button 
+              onClick={() => setShowUserSearch(true)}
+              className="w-10 h-10 bg-primary/10 text-primary rounded-xl hover:bg-primary hover:text-background transition-all flex items-center justify-center border border-primary/20 shadow-lg shadow-primary/10"
+            >
+              <PlusSquare size={20} />
+            </button>
+          </div>
+          <span className="text-[10px] font-black uppercase tracking-[0.2em] text-text/30">Tus conversaciones activas</span>
         </div>
 
-        <div className="flex-1 overflow-y-auto scrollbar-hide">
+        <div className="flex-1 overflow-y-auto scrollbar-hide p-2 space-y-1">
           {chats.length > 0 ? (
-            <div className="divide-y divide-white/5">
+            <div className="space-y-1">
               {chats.map((chat) => (
                 <button 
                   key={chat.id}
                   onClick={() => setSelectedChat(chat)}
-                  className={`w-full p-6 flex items-center gap-4 hover:bg-white/[0.02] transition-colors text-left ${selectedChat?.id === chat.id ? 'bg-white/[0.05]' : ''}`}
+                  className={`group w-full p-6 flex items-center gap-5 hover:bg-white/[0.03] rounded-3xl transition-all text-left relative overflow-hidden ${selectedChat?.id === chat.id ? 'bg-white/[0.05] border border-white/5' : 'border border-transparent'}`}
                 >
-                  <div className="w-12 h-12 rounded-full bg-surface border border-white/10 flex items-center justify-center flex-shrink-0 text-primary font-bold">
+                  {selectedChat?.id === chat.id && (
+                    <div className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-8 bg-primary rounded-r-full" />
+                  )}
+                  <div className="w-14 h-14 rounded-full bg-white/[0.02] border border-white/10 flex items-center justify-center flex-shrink-0 text-primary font-black text-xl group-hover:scale-105 transition-transform duration-500">
                     {chat.otherUser.fullName.charAt(0)}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <div className="flex justify-between items-start mb-1">
-                      <h4 className="font-bold text-text truncate">{chat.otherUser.fullName}</h4>
+                    <div className="flex justify-between items-center mb-1">
+                      <h4 className="font-display font-black text-white truncate uppercase tracking-tight">{chat.otherUser.fullName}</h4>
                     </div>
-                    <p className="text-xs text-text/40 truncate">{chat.lastMessage}</p>
+                    <p className="text-[11px] text-text/30 truncate font-bold">{chat.lastMessage}</p>
                   </div>
                 </button>
               ))}
             </div>
           ) : (
-            <div className="flex flex-col items-center justify-center h-full p-8 text-center opacity-30">
-              <MessageCircle size={48} className="mb-4" />
-              <p className="text-sm font-bold uppercase tracking-widest">Sin mensajes</p>
+            <div className="flex flex-col items-center justify-center h-full p-8 text-center opacity-20">
+              <MessageCircle size={64} className="mb-4 text-primary" strokeWidth={1} />
+              <p className="text-[10px] font-black uppercase tracking-[0.3em]">Sin conexiones</p>
             </div>
           )}
         </div>
       </div>
 
       {/* Main Chat Area */}
-      <div className={`flex-1 flex flex-col glass overflow-hidden ${!selectedChat ? 'hidden md:flex' : 'flex'}`}>
+      <div className={`flex-1 flex flex-col glass overflow-hidden rounded-[32px] border border-white/5 relative z-10 ${!selectedChat ? 'hidden md:flex' : 'flex'}`}>
         {selectedChat ? (
           <>
             {/* Header */}
-            <div className="p-4 md:p-6 border-b border-white/5 flex items-center justify-between">
+            <div className="p-6 md:p-8 border-b border-white/5 flex items-center justify-between bg-white/[0.01]">
               <div className="flex items-center gap-4">
                 <button 
                   onClick={() => setSelectedChat(null)}
-                  className="md:hidden p-2 text-text/40"
+                  className="md:hidden p-2 text-text/40 hover:text-white transition-colors"
                 >
                   <ChevronLeft size={24} />
                 </button>
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center text-primary font-bold">
+                <div className="flex items-center gap-5">
+                  <div className="w-12 h-12 rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-center text-primary font-black text-xl shadow-2xl">
                     {selectedChat.otherUser.fullName.charAt(0)}
                   </div>
                   <div>
-                    <h3 className="font-bold text-text">{selectedChat.otherUser.fullName}</h3>
-                    <span className="text-[10px] text-green-500 font-bold uppercase flex items-center gap-1">
-                      <Circle size={6} fill="currentColor" /> en línea
-                    </span>
+                    <h3 className="font-display font-black text-white uppercase tracking-tight text-lg">{selectedChat.otherUser.fullName}</h3>
+                    <div className="flex items-center gap-2">
+                       <div className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse shadow-[0_0_10px_rgba(34,197,94,0.5)]" />
+                       <span className="text-[9px] text-green-500 font-black uppercase tracking-widest">En línea</span>
+                    </div>
                   </div>
                 </div>
               </div>
-              <button className="p-2 text-text/30">
-                <MoreVertical size={20} />
-              </button>
+              <div className="flex items-center gap-2">
+                <button 
+                  onClick={startVideoCall}
+                  className="p-3 text-primary hover:bg-primary/10 rounded-xl transition-all group"
+                  title="Video Llamada"
+                >
+                  <VideoIcon size={22} className="group-hover:scale-110 transition-transform" />
+                </button>
+                <button className="p-3 text-text/30 hover:text-white hover:bg-white/5 rounded-xl transition-all">
+                  <MoreVertical size={20} />
+                </button>
+              </div>
             </div>
 
             {/* Messages */}
             <div 
               ref={scrollRef}
-              className="flex-1 overflow-y-auto p-6 space-y-6 scroll-smooth"
+              className="flex-1 overflow-y-auto p-8 space-y-10 scroll-smooth scrollbar-hide"
             >
-              {messages.map((msg) => {
+              {messages.map((msg, idx) => {
                 const isMe = msg.senderId === auth.currentUser?.uid;
+                const showAvatar = idx === 0 || messages[idx-1].senderId !== msg.senderId;
+                
                 return (
                   <div 
                     key={msg.id}
-                    className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}
+                    className={`flex items-end gap-3 ${isMe ? 'flex-row-reverse' : 'flex-row'}`}
                   >
-                    <div className={`max-w-[75%] p-4 rounded-2xl text-sm ${
-                      isMe 
-                        ? 'bg-primary text-background font-bold shadow-lg shadow-primary/20' 
-                        : 'bg-surface border border-white/5 text-text'
-                    }`}>
+                    {!isMe && (
+                      <div className={`w-8 h-8 rounded-lg bg-surface border border-white/5 flex items-center justify-center text-[10px] font-black text-primary/40 ${showAvatar ? 'opacity-100' : 'opacity-0'}`}>
+                        {selectedChat.otherUser.fullName.charAt(0)}
+                      </div>
+                    )}
+                    <motion.div 
+                      initial={{ opacity: 0, scale: 0.95, y: 10 }}
+                      animate={{ opacity: 1, scale: 1, y: 0 }}
+                      className={`max-w-[70%] p-5 rounded-[24px] text-xs font-bold leading-relaxed shadow-2xl ${
+                        isMe 
+                          ? 'bg-primary text-background rounded-tr-none' 
+                          : 'bg-white/[0.02] border border-white/5 text-white/80 rounded-tl-none'
+                      }`}
+                    >
                       {msg.text}
-                    </div>
+                    </motion.div>
                   </div>
                 );
               })}
             </div>
 
             {/* Input */}
-            <form onSubmit={handleSendMessage} className="p-4 md:p-6 border-t border-white/5">
-              <div className="flex gap-4">
+            <form onSubmit={handleSendMessage} className="p-6 md:p-8 border-t border-white/5 bg-white/[0.01]">
+              <div className="flex gap-4 relative">
                 <input 
                   type="text"
-                  placeholder="Escribe un mensaje..."
-                  className="flex-1 bg-surface border border-white/5 rounded-2xl py-3 px-6 text-sm focus:outline-none focus:border-primary/50 transition-all font-medium"
+                  placeholder="Escribe tu mensaje aquí..."
+                  className="flex-1 bg-white/[0.02] border border-white/5 rounded-[24px] py-4 px-8 text-xs focus:outline-none focus:border-primary/30 transition-all font-bold text-white shadow-inner placeholder:text-text/20 placeholder:uppercase placeholder:tracking-widest"
                   value={newMessage}
                   onChange={(e) => setNewMessage(e.target.value)}
                 />
                 <button 
                   type="submit"
                   disabled={!newMessage.trim()}
-                  className="p-4 bg-primary text-background rounded-2xl font-black shadow-lg shadow-primary/20 active:scale-95 disabled:opacity-30 transition-all"
+                  className="p-5 bg-primary text-background rounded-[24px] font-black shadow-2xl shadow-primary/20 active:scale-90 disabled:opacity-20 transition-all group"
                 >
-                  <Send size={20} />
+                  <Send size={20} className="group-hover:translate-x-1 group-hover:-translate-y-1 transition-transform" />
                 </button>
               </div>
             </form>
           </>
         ) : (
           <div className="flex-1 flex flex-col items-center justify-center p-12 text-center">
-            <div className="w-20 h-20 bg-primary/10 rounded-full flex items-center justify-center mb-6">
-              <MessageCircle className="text-primary" size={32} />
+            <div className="w-24 h-24 bg-white/[0.01] border border-white/5 rounded-[40px] flex items-center justify-center mb-8 shadow-2xl">
+              <MessageCircle className="text-primary/20" size={40} strokeWidth={1.5} />
             </div>
-            <h3 className="text-2xl font-bold text-text mb-2">Tus Mensajes</h3>
-            <p className="text-text/30 max-w-xs">Selecciona una conversación para empezar a chatear con otros mezcladores.</p>
+            <h3 className="text-3xl font-display font-black text-white uppercase tracking-tighter mb-4">Central de <span className="text-primary">Mensajes</span></h3>
+            <p className="text-text/30 max-w-xs text-[10px] font-bold uppercase tracking-[0.2em] leading-relaxed">Conecta con los creadores de la comunidad y comparte tu visión creativa</p>
           </div>
         )}
       </div>
@@ -300,50 +338,56 @@ export default function Chat() {
       {/* User Search Modal */}
       <AnimatePresence>
         {showUserSearch && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-background/40 backdrop-blur-3xl">
             <motion.div 
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               onClick={() => setShowUserSearch(false)}
-              className="absolute inset-0 bg-black/80 backdrop-blur-md"
+              className="absolute inset-0"
             />
             <motion.div 
-              initial={{ scale: 0.9, opacity: 0, y: 20 }}
+              initial={{ scale: 0.95, opacity: 0, y: 20 }}
               animate={{ scale: 1, opacity: 1, y: 0 }}
-              exit={{ scale: 0.9, opacity: 0, y: 20 }}
-              className="relative w-full max-w-lg glass max-h-[70vh] flex flex-col"
+              exit={{ scale: 0.95, opacity: 0, y: 20 }}
+              className="relative w-full max-w-xl glass p-1 max-h-[80vh] flex flex-col"
             >
-              <div className="p-6 border-b border-white/5">
-                <h3 className="text-xl font-bold text-white mb-4">Nueva Conversación</h3>
-                <div className="relative">
-                  <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-text/30" size={16} />
+              <div className="p-8 md:p-12">
+                <div className="flex items-center justify-between mb-8">
+                   <h3 className="text-2xl font-display font-black text-white uppercase tracking-tighter">Nueva Conexión</h3>
+                   <button onClick={() => setShowUserSearch(false)} className="p-2 text-text/30 hover:text-white transition-colors"><X size={20}/></button>
+                </div>
+                <div className="relative mb-8">
+                  <Search className="absolute left-6 top-1/2 -translate-y-1/2 text-primary" size={18} />
                   <input 
                     type="text"
-                    placeholder="Buscar por nombre..."
-                    className="input-field pl-12"
+                    placeholder="BUSCAR CREADOR..."
+                    className="input-field pl-16 rounded-[24px] bg-white/[0.02] border-white/5"
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
                     autoFocus
                   />
                 </div>
-              </div>
-              <div className="flex-1 overflow-y-auto p-2">
-                {availableUsers.filter(u => u.fullName.toLowerCase().includes(searchTerm.toLowerCase())).map((u) => (
-                  <button 
-                    key={u.id}
-                    onClick={() => startChat(u)}
-                    className="w-full p-4 flex items-center gap-4 hover:bg-white/5 rounded-xl transition-all text-left"
-                  >
-                    <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold">
-                      {u.fullName.charAt(0)}
-                    </div>
-                    <div>
-                      <h4 className="font-bold text-text">{u.fullName}</h4>
-                      <p className="text-xs text-text/40">{u.email}</p>
-                    </div>
-                  </button>
-                ))}
+                
+                <div className="flex-1 overflow-y-auto p-2 space-y-2">
+                  {searchTerm && availableUsers.filter(u => u.fullName.toLowerCase().includes(searchTerm.toLowerCase())).map((u) => (
+                    <button 
+                      key={u.id}
+                      onClick={() => startChat(u)}
+                      className="w-full p-5 flex items-center gap-5 hover:bg-white/[0.03] rounded-[24px] border border-transparent hover:border-white/5 transition-all text-left group"
+                    >
+                      <div className="w-14 h-14 rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-center text-primary font-black text-xl group-hover:scale-105 transition-transform">
+                        {u.fullName.charAt(0)}
+                      </div>
+                      <div>
+                        <h4 className="font-display font-black text-white uppercase tracking-tight text-lg">{u.fullName}</h4>
+                        <p className="text-[10px] text-text/30 font-black uppercase tracking-widest">{u.email}</p>
+                      </div>
+                      <PlusSquare className="ml-auto text-primary/20 group-hover:text-primary transition-colors" size={24} />
+                    </button>
+                  ))}
+                  {!searchTerm && <div className="text-center py-10 text-[10px] font-black uppercase tracking-widest text-text/20">Empieza a escribir para buscar...</div>}
+                </div>
               </div>
             </motion.div>
           </div>
@@ -352,8 +396,3 @@ export default function Chat() {
     </div>
   );
 }
-
-// Missing import fix
-const PlusSquareIcon = ({size}: {size: number}) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
-);

@@ -11,9 +11,10 @@ import {
   createUserWithEmailAndPassword, 
   signInWithEmailAndPassword, 
   signOut,
+  deleteUser,
   User as FirebaseUser
 } from 'firebase/auth';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc, deleteDoc } from 'firebase/firestore';
 
 interface UserContextType {
   user: UserData | null;
@@ -21,6 +22,8 @@ interface UserContextType {
   register: (data: Omit<UserData, 'isLoggedIn'>, password: string) => Promise<void>;
   login: (email: string, pass: string) => Promise<void>;
   logout: () => Promise<void>;
+  updateProfile: (data: Partial<UserData>) => Promise<void>;
+  deleteAccount: () => Promise<void>;
 }
 
 const UserContext = createContext<UserContextType | undefined>(undefined);
@@ -53,6 +56,22 @@ export function UserProvider({ children }: { children: ReactNode }) {
     return () => unsubscribe();
   }, []);
 
+  const updateProfile = async (data: Partial<UserData>) => {
+    if (!auth.currentUser) throw new Error('No hay usuario autenticado');
+    
+    await setDoc(doc(db, 'users', auth.currentUser.uid), data, { merge: true });
+    setUser(prev => prev ? { ...prev, ...data } : null);
+  };
+
+  const deleteAccount = async () => {
+    if (!auth.currentUser) throw new Error('No hay usuario autenticado');
+    const userRef = doc(db, 'users', auth.currentUser.uid);
+    const userToDel = auth.currentUser;
+    await deleteDoc(userRef);
+    await deleteUser(userToDel);
+    setUser(null);
+  };
+
   const register = async (data: Omit<UserData, 'isLoggedIn'>, password: string) => {
     const userCredential = await createUserWithEmailAndPassword(auth, data.email, password);
     const firebaseUser = userCredential.user;
@@ -82,7 +101,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <UserContext.Provider value={{ user, loading, register, login, logout }}>
+    <UserContext.Provider value={{ user, loading, register, login, logout, updateProfile, deleteAccount }}>
       {!loading && children}
     </UserContext.Provider>
   );

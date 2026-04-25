@@ -69,6 +69,20 @@
         "adminEmails": { "type": "array", "items": { "type": "string" } }
       },
       "required": ["appName"]
+    },
+    "Call": {
+      "title": "Call",
+      "description": "1v1 Video call session",
+      "type": "object",
+      "properties": {
+        "callerId": { "type": "string" },
+        "receiverId": { "type": "string" },
+        "status": { "type": "string", "enum": ["pending", "accepted", "rejected", "ended"] },
+        "offer": { "type": "object" },
+        "answer": { "type": "object" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["callerId", "receiverId", "status", "createdAt"]
     }
   },
   "firestore": {
@@ -87,6 +101,18 @@
     "chats/{chatId}/messages/{messageId}": {
       "schema": "Message",
       "description": "Messages within a chat"
+    },
+    "calls/{callId}": {
+      "schema": "Call",
+      "description": "Video call signaling"
+    },
+    "calls/{callId}/callerCandidates/{id}": {
+      "schema": "object",
+      "description": "ICE Candidates from caller"
+    },
+    "calls/{callId}/receiverCandidates/{id}": {
+      "schema": "object",
+      "description": "ICE Candidates from receiver"
     },
     "config/app": {
       "schema": "AppConfig",

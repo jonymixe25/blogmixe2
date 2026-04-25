@@ -11,6 +11,10 @@ service cloud.firestore {
       return request.auth != null;
     }
 
+    function isAdmin() {
+      return isSignedIn() && request.auth.token.email.lower() in ["ayuuktv42@gmail.com", "ayuuk42@gmail.com"];
+    }
+
     function isOwner(userId) {
       return isSignedIn() && request.auth.uid == userId;
     }
@@ -29,32 +33,63 @@ service cloud.firestore {
         && (!data.keys().hasAny(['profilePic']) || (data.profilePic is string && data.profilePic.size() <= 500));
     }
 
+    function isValidPost(data) {
+      return data.keys().hasAll(['userId', 'url', 'type', 'createdAt', 'userName', 'title', 'category', 'likes', 'filename'])
+        && data.userId is string
+        && data.url is string
+        && data.type in ['image', 'video']
+        && data.userName is string
+        && data.title is string && data.title.size() <= 100
+        && data.category is string
+        && data.likes is number
+        && data.filename is string;
+    }
+
     match /users/{userId} {
-      allow get: if isSignedIn() && isOwner(userId);
+      allow get: if isSignedIn() && (isOwner(userId) || isAdmin());
+      allow list: if isAdmin();
       allow create: if isSignedIn() && isOwner(userId) && isValidId(userId) && isValidUser(request.resource.data);
       allow update: if isSignedIn() && isOwner(userId) && isValidUser(request.resource.data);
+      allow delete: if isAdmin();
     }
 
     match /posts/{postId} {
       allow read: if true;
-      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
-      allow delete: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid && isValidPost(request.resource.data);
+      allow update: if isSignedIn() && (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['likes']));
+      allow delete: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
     }
 
     match /chats/{chatId} {
-      allow read: if isSignedIn() && request.auth.uid in resource.data.participants;
+      allow read: if isSignedIn() && (request.auth.uid in resource.data.participants || isAdmin());
       allow create: if isSignedIn();
-      allow update: if isSignedIn() && request.auth.uid in resource.data.participants;
+      allow update: if isSignedIn() && (request.auth.uid in resource.data.participants || isAdmin());
+      allow delete: if isAdmin();
     }
 
     match /chats/{chatId}/messages/{messageId} {
-      allow read: if isSignedIn() && request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.participants;
-      allow create: if isSignedIn() && request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.participants;
+      allow read: if isSignedIn() && (request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.participants || isAdmin());
+      allow create: if isSignedIn() && (request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.participants);
+    }
+
+    match /calls/{callId} {
+      allow read: if isSignedIn() && (request.auth.uid == resource.data.callerId || request.auth.uid == resource.data.receiverId);
+      allow create: if isSignedIn() && request.resource.data.callerId == request.auth.uid;
+      allow update: if isSignedIn() && (request.auth.uid == resource.data.callerId || request.auth.uid == resource.data.receiverId);
+      allow delete: if isAdmin() || (isSignedIn() && (request.auth.uid == resource.data.callerId || request.auth.uid == resource.data.receiverId));
+    }
+
+    match /calls/{callId}/callerCandidates/{id} {
+      allow read, write: if isSignedIn() && (request.auth.uid == get(/databases/$(database)/documents/calls/$(callId)).data.callerId || request.auth.uid == get(/databases/$(database)/documents/calls/$(callId)).data.receiverId);
+    }
+
+    match /calls/{callId}/receiverCandidates/{id} {
+      allow read, write: if isSignedIn() && (request.auth.uid == get(/databases/$(database)/documents/calls/$(callId)).data.callerId || request.auth.uid == get(/databases/$(database)/documents/calls/$(callId)).data.receiverId);
     }
 
     match /config/app {
       allow read: if true;
-      allow write: if isSignedIn() && request.auth.token.email == "ayuuktv42@gmail.com"; 
+      allow write: if isAdmin(); 
     }
     
     match /test/connection {

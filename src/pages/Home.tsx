@@ -4,7 +4,7 @@
  */
 
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { Play, LogIn, UserPlus, X, Eye, EyeOff } from 'lucide-react';
 import { useUser } from '../context/UserContext';
@@ -35,60 +35,101 @@ export default function Home() {
 
   return (
     <div className="relative min-h-screen flex flex-col items-center justify-center p-4 overflow-hidden bg-background">
-      {/* Background decoration */}
-      <div className="absolute top-0 left-0 w-full h-full -z-10 overflow-hidden">
-        <div className="absolute -top-20 -left-20 w-[40rem] h-[40rem] bg-primary/20 rounded-full blur-[100px] animate-pulse" />
-        <div className="absolute -bottom-20 -right-20 w-[30rem] h-[30rem] bg-indigo-500/10 rounded-full blur-[100px]" />
+      {/* Immersive Background */}
+      <div className="absolute inset-0 -z-10 overflow-hidden">
+        <div className="absolute top-0 right-0 w-[50vw] h-[50vw] bg-primary/10 blur-[150px] rounded-full animate-pulse" />
+        <div className="absolute bottom-0 left-0 w-[40vw] h-[40vw] bg-accent/10 blur-[150px] rounded-full" />
+      </div>
+
+      {/* Top Bar */}
+      <div className="fixed top-0 left-0 right-0 p-8 flex items-center justify-between z-30 max-w-7xl mx-auto w-full">
+        <motion.div 
+          initial={{ opacity: 0, x: -20 }}
+          animate={{ opacity: 1, x: 0 }}
+          className="flex items-center gap-3"
+        >
+          <div className="w-10 h-10 bg-primary/20 border border-primary/30 rounded-xl flex items-center justify-center backdrop-blur-md">
+            <span className="text-primary font-black text-xl uppercase tracking-tighter">{settings.appName.charAt(0)}</span>
+          </div>
+          <span className="font-display font-black text-xl tracking-tighter text-white uppercase">{settings.appName}</span>
+        </motion.div>
+        
+        <motion.button
+          initial={{ opacity: 0, x: 20 }}
+          animate={{ opacity: 1, x: 0 }}
+          onClick={() => setShowLogin(true)}
+          className="text-[10px] font-black uppercase tracking-[0.2em] text-text/40 hover:text-primary transition-colors py-2 px-4"
+        >
+          Iniciar Sesión
+        </motion.button>
       </div>
 
       <motion.div 
-        initial={{ opacity: 0, y: 20 }}
+        initial={{ opacity: 0, y: 30 }}
         animate={{ opacity: 1, y: 0 }}
-        className="text-center mb-12 max-w-5xl w-full"
+        className="text-center max-w-6xl w-full relative z-10"
       >
-        <div className="flex flex-col md:flex-row items-center justify-between mb-8 md:mb-16 w-full px-4 gap-6">
-          <span className="text-3xl md:text-2xl font-black tracking-tighter text-primary uppercase">{settings.appName}</span>
-          <button
-            onClick={() => setShowLogin(true)}
-            className="w-full md:w-auto px-8 py-3 bg-surface text-text/80 rounded-xl text-sm font-bold hover:text-text transition-colors border border-white/5 active:scale-95"
-          >
-            Iniciar Sesión
-          </button>
+        <div className="mb-2 w-full flex justify-center">
+          <span className="section-label">{settings.heroSubtitle}</span>
         </div>
 
-        <div className="relative aspect-video w-full rounded-2xl md:rounded-3xl overflow-hidden shadow-[0_20px_50px_-15px_rgba(0,0,0,0.7)] border border-white/10 bg-black group">
-          <iframe
-            className="w-full h-full"
-            src="https://www.youtube.com/embed/97WubZAYumw?autoplay=1&mute=1&list=RD97WubZAYumw&index=1"
-            title="YouTube video player"
-            frameBorder="0"
-            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-            allowFullScreen
-          ></iframe>
-          <div className="absolute top-4 left-4 pointer-events-none">
-             <span className="bg-black/60 backdrop-blur-md text-[10px] text-white px-3 py-1 rounded-full border border-white/10 font-bold uppercase tracking-widest">En Vivo</span>
+        <h1 className="text-7xl md:text-[180px] font-display font-black text-white leading-[0.85] tracking-tighter uppercase mb-12">
+          {settings.heroTitle.split(' ').length > 1 ? (
+            <>
+              {settings.heroTitle.split(' ')[0]} <br />
+              <span className="text-primary translate-x-4 md:translate-x-12 inline-block">
+                {settings.heroTitle.split(' ').slice(1).join(' ')}
+              </span>
+            </>
+          ) : (
+            <span className="text-primary">{settings.heroTitle}</span>
+          )}
+        </h1>
+
+        <div className="relative max-w-4xl mx-auto mb-16 group">
+          <div className="absolute -inset-1 bg-gradient-to-r from-primary/30 to-accent/30 rounded-[40px] blur opacity-25 group-hover:opacity-50 transition duration-1000"></div>
+          <div className="relative aspect-video w-full rounded-[40px] overflow-hidden shadow-2xl border border-white/5 bg-surface backdrop-blur-3xl">
+            <iframe
+              className="w-full h-full grayscale-[0.2] contrast-125 opacity-80 group-hover:opacity-100 transition-all duration-700 hover:scale-[1.01]"
+              src="https://www.youtube.com/embed/97WubZAYumw?autoplay=1&mute=1&loop=1&playlist=97WubZAYumw"
+              title="Community Spotlight"
+              frameBorder="0"
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+              allowFullScreen
+            ></iframe>
+            <div className="absolute top-6 left-6 pointer-events-none">
+              <div className="flex items-center gap-3">
+                <span className="bg-red-500 text-[9px] text-white px-3 py-1 rounded-full font-black uppercase tracking-widest animate-pulse">En Vivo</span>
+                <span className="glass-dark px-3 py-1 rounded-full text-[9px] text-white/60 font-bold uppercase tracking-widest border border-white/10">Ayutla de los Libres</span>
+              </div>
+            </div>
+            
+            <div className="absolute bottom-10 left-10 right-10 text-left">
+               <h3 className="text-2xl font-black text-white italic tracking-tighter mb-2">ESPLENDOR CULTURAL</h3>
+               <p className="text-white/40 text-[10px] font-bold uppercase tracking-widest">Descubriendo nuestras raíces a través de la lente</p>
+            </div>
           </div>
         </div>
 
-        <div className="mt-10 md:mt-16 flex flex-col sm:flex-row gap-4 md:gap-6 justify-center items-center w-full max-w-md mx-auto sm:max-w-none">
+        <div className="flex flex-col sm:flex-row gap-6 justify-center items-center">
           <button
             onClick={() => navigate('/register')}
-            className="btn-primary w-full sm:w-auto flex items-center justify-center gap-3 text-lg px-10 py-5"
+            className="btn-primary flex items-center justify-center gap-4"
           >
-            <UserPlus size={22} />
-            <span>Crear Cuenta Gratis</span>
+            <UserPlus size={18} />
+            <span>Únete a la Comunidad</span>
           </button>
           <button
             onClick={() => navigate('/feed')}
-            className="btn-outline w-full sm:w-auto flex items-center justify-center gap-3 text-lg px-10 py-5"
+            className="btn-outline flex items-center justify-center gap-4"
           >
-            <Play size={22} fill="currentColor" />
-            <span>Ver Publicaciones</span>
+            <Play size={18} fill="currentColor" />
+            <span>Explorar Contenido</span>
           </button>
         </div>
       </motion.div>
 
-      {/* Floating Login Modal */}
+      {/* Login Modal */}
       <AnimatePresence>
         {showLogin && (
           <>
@@ -97,69 +138,63 @@ export default function Home() {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               onClick={() => setShowLogin(false)}
-              className="fixed inset-0 bg-black/80 backdrop-blur-md z-40"
+              className="fixed inset-0 bg-black/90 backdrop-blur-3xl z-40"
             />
             <motion.div
-              initial={{ opacity: 0, scale: 0.9, y: 40 }}
+              initial={{ opacity: 0, scale: 0.95, y: 30 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.9, y: 40 }}
-              className="fixed z-50 w-full max-w-md glass p-10 mx-4"
+              exit={{ opacity: 0, scale: 0.95, y: 30 }}
+              className="fixed z-50 w-full max-w-sm glass p-10 mx-4 border-white/10"
             >
-              <div className="flex justify-between items-center mb-8">
-                <h2 className="text-2xl font-bold tracking-tight text-text">Iniciar Sesión</h2>
-                <button 
-                  onClick={() => setShowLogin(false)}
-                  className="p-2 hover:bg-white/10 rounded-full transition-colors text-text/50"
-                >
-                  <X size={20} />
-                </button>
+              <div className="mb-10 text-center">
+                <h2 className="text-3xl font-display font-black tracking-tighter text-white uppercase mb-2">Bienvenido</h2>
+                <p className="text-text/30 text-[10px] font-bold uppercase tracking-widest">Ingresa tus credenciales</p>
               </div>
 
               <form onSubmit={handleLogin} className="space-y-6">
                 <div>
-                  <label className="block text-[10px] font-bold text-text/40 mb-2 uppercase tracking-[0.1em]">Email</label>
+                  <label className="section-label mb-2">Correo Electrónico</label>
                   <input
                     type="email"
                     required
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    placeholder="ejemplo@correo.com"
-                    className="input-field"
+                    placeholder="ayuuk@mixe.com"
+                    className="input-field rounded-2xl"
                   />
                 </div>
 
                 <div className="relative">
-                  <label className="block text-[10px] font-bold text-text/40 mb-2 uppercase tracking-[0.1em]">Contraseña</label>
+                  <label className="section-label mb-2">Contraseña</label>
                   <input
                     type={showPassword ? 'text' : 'password'}
                     required
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="••••••••"
-                    className="input-field"
+                    className="input-field rounded-2xl"
                   />
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-4 bottom-3 text-text/30 hover:text-text/60 p-1 transition-colors"
+                    className="absolute right-5 bottom-4 text-text/20 hover:text-primary transition-colors p-1"
                   >
-                    {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                    {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                   </button>
                 </div>
 
-                {error && <p className="text-red-400 text-sm mt-1">{error}</p>}
+                {error && <p className="text-red-400 text-[10px] font-bold uppercase tracking-widest text-center">{error}</p>}
 
-                <div className="flex flex-col gap-3 mt-8">
-                  <button type="submit" className="btn-primary w-full shadow-lg shadow-primary/20">
-                    Acceder
+                <div className="flex flex-col gap-4 mt-10">
+                  <button type="submit" className="btn-primary w-full tracking-[0.2em] shadow-xl">
+                    Entrar
                   </button>
-                  <button 
-                    type="button"
-                    onClick={() => setShowLogin(false)}
-                    className="w-full py-3 text-text/50 font-semibold hover:text-text transition-colors"
+                  <Link 
+                    to="/register" 
+                    className="text-[10px] font-black uppercase tracking-widest text-text/30 hover:text-white text-center transition-colors"
                   >
-                    Cancelar
-                  </button>
+                    ¿No tienes cuenta? Regístrate
+                  </Link>
                 </div>
               </form>
             </motion.div>
