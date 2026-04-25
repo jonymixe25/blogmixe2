@@ -15,13 +15,16 @@ import {
   AlertCircle,
   ArrowLeft,
   Loader2,
-  Plus
+  Plus,
+  Sparkles,
+  Wand2
 } from 'lucide-react';
 import { useUser } from '../context/UserContext';
 import { useIsMobile } from '../hooks/useIsMobile';
 
 import { db, auth } from '../lib/firebase';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { GoogleGenAI } from '@google/genai';
 
 export default function Publish() {
   const { user } = useUser();
@@ -36,6 +39,7 @@ export default function Publish() {
   const [message, setMessage] = useState('');
   const [title, setTitle] = useState('');
   const [category, setCategory] = useState('Tendencias');
+  const [suggesting, setSuggesting] = useState(false);
   
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -67,6 +71,9 @@ export default function Publish() {
       const formData = new FormData();
       formData.append('file', file);
 
+      // Log full URL for debugging
+      console.log('Starting upload to:', window.location.origin + '/api/upload');
+
       // We'll use XMLHttpRequest for progress tracking
       const xhr = new XMLHttpRequest();
       
@@ -78,6 +85,7 @@ export default function Publish() {
       });
 
       xhr.addEventListener('load', async () => {
+        console.log('Upload finished with status:', xhr.status);
         if (xhr.status >= 200 && xhr.status < 300) {
           try {
             const response = JSON.parse(xhr.responseText);
@@ -143,6 +151,28 @@ export default function Publish() {
       setStatus('error');
       setMessage('Error crítico durante la subida.');
       setUploading(false);
+    }
+  };
+
+  const suggestTitle = async () => {
+    if (!category || suggesting) return;
+    
+    setSuggesting(true);
+    try {
+      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || '' });
+      const response = await ai.models.generateContent({
+        model: "gemini-3-flash-preview",
+        contents: `Suggest 3 unique, creative, and catchy titles for a ${category} post on a modern, viral art/lifestyle app. Spanish preferred. Give only the titles, separated by commas.`,
+      });
+      
+      const suggestions = response.text?.split(',') || [];
+      if (suggestions.length > 0) {
+        setTitle(suggestions[0].trim().replace(/['"]/g, ''));
+      }
+    } catch (err) {
+      console.error("Gemini error:", err);
+    } finally {
+      setSuggesting(false);
     }
   };
 
@@ -254,7 +284,22 @@ export default function Publish() {
 
               <div className="space-y-10 flex flex-col justify-center">
                 <div className="space-y-4">
-                  <label className="section-label">Título de la publicación</label>
+                  <div className="flex justify-between items-center mb-1">
+                    <label className="section-label mb-0">Título de la publicación</label>
+                    <button 
+                      type="button" 
+                      onClick={suggestTitle}
+                      disabled={suggesting}
+                      className="flex items-center gap-2 text-[9px] font-black uppercase tracking-[0.2em] text-primary hover:text-white transition-colors bg-primary/5 px-3 py-1.5 rounded-full border border-primary/10"
+                    >
+                      {suggesting ? (
+                        <Loader2 size={12} className="animate-spin text-primary" />
+                      ) : (
+                        <Wand2 size={12} className="text-primary" />
+                      )}
+                      <span>Mejorar con IA</span>
+                    </button>
+                  </div>
                   <input 
                     type="text"
                     required

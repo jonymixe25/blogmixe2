@@ -55,6 +55,11 @@ const upload = multer({
 });
 
 // API routes
+app.use("/api", (req, res, next) => {
+  console.log(`API Request: ${req.method} ${req.url}`);
+  next();
+});
+
 app.post("/api/upload", (req, res, next) => {
   upload.single("file")(req, res, (err) => {
     if (err instanceof multer.MulterError) {
