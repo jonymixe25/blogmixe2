@@ -61,6 +61,7 @@ app.use("/api", (req, res, next) => {
 });
 
 app.post("/api/upload", (req, res, next) => {
+  console.log("Receiving upload request...");
   upload.single("file")(req, res, (err) => {
     if (err instanceof multer.MulterError) {
       console.error("Multer error:", err);
@@ -134,6 +135,12 @@ app.delete("/api/local/data/:key", (req, res) => {
   } catch (err) {
     res.status(500).json({ error: "Failed to delete local data" });
   }
+});
+
+// API 404 Catch-all (to debug why requests fail)
+app.all("/api/*", (req, res) => {
+  console.log(`[404] API Not Found: ${req.method} ${req.url}`);
+  res.status(404).json({ error: `Route ${req.method} ${req.url} not found on this server.` });
 });
 
 // Serve static files from uploads

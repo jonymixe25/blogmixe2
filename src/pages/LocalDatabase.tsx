@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
-import { Database, Trash2, Plus, RefreshCw, Save, HardDrive, Video } from 'lucide-react';
+import { Database, Trash2, Plus, RefreshCw, Save, HardDrive, Video, Search } from 'lucide-react';
 
 interface LocalDataItem {
   key: string;
@@ -20,6 +20,7 @@ export default function LocalDatabase() {
   const [files, setFiles] = useState<LocalFile[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingFiles, setLoadingFiles] = useState(true);
+  const [fileSearch, setFileSearch] = useState('');
   const [newKey, setNewKey] = useState('');
   const [newValue, setNewValue] = useState('');
   const [status, setStatus] = useState<{ type: 'success' | 'error', message: string } | null>(null);
@@ -93,6 +94,19 @@ export default function LocalDatabase() {
       console.error('Failed to delete:', err);
     }
   };
+
+  const filteredFiles = files.filter(f => f.name.toLowerCase().includes(fileSearch.toLowerCase()));
+
+  const stats = React.useMemo(() => {
+    const totalSize = files.reduce((acc, f) => acc + f.size, 0);
+    const videoCount = files.filter(f => f.name.match(/\.(mp4|webm|ogg)$/i)).length;
+    const imageCount = files.length - videoCount;
+    return {
+      totalSize: (totalSize / 1024 / 1024).toFixed(2),
+      videoCount,
+      imageCount
+    };
+  }, [files]);
 
   return (
     <div className="min-h-screen pt-32 pb-20 px-8 max-w-6xl mx-auto">
@@ -175,19 +189,44 @@ export default function LocalDatabase() {
           <div className="glass p-1">
             <div className="p-8 md:p-12">
               <div className="flex items-center justify-between mb-10">
-                <div className="flex items-center gap-4">
-                  <span className="section-label mb-0">Contenido Multimedia Local (/uploads)</span>
-                  <div className="px-3 py-1 bg-white/5 rounded-full text-[9px] font-black text-primary border border-white/10 uppercase tracking-widest">
-                    {files.length} ARCHIVOS
+                <div className="flex flex-col gap-4">
+                  <div className="flex items-center gap-4">
+                    <span className="section-label mb-0">Contenido Multimedia Local (/uploads)</span>
+                    <div className="px-3 py-1 bg-white/5 rounded-full text-[9px] font-black text-primary border border-white/10 uppercase tracking-widest">
+                      {files.length} ARCHIVOS
+                    </div>
+                  </div>
+                  <div className="flex flex-wrap gap-6 text-[9px] font-black uppercase tracking-[0.2em] text-text/30">
+                    <div className="flex items-center gap-2">
+                       <span className="text-white/60">{stats.totalSize} MB</span> USADOS
+                    </div>
+                    <div className="flex items-center gap-2">
+                       <span className="text-white/60">{stats.videoCount}</span> VIDEOS
+                    </div>
+                    <div className="flex items-center gap-2">
+                       <span className="text-white/60">{stats.imageCount}</span> IMÁGENES
+                    </div>
                   </div>
                 </div>
-                <button onClick={fetchFiles} className="text-text/20 hover:text-primary transition-colors">
-                  <RefreshCw size={18} className={loadingFiles ? 'animate-spin' : ''} />
-                </button>
+                <div className="flex items-center gap-4">
+                  <div className="relative group">
+                    <input 
+                      type="text" 
+                      placeholder="FILTRAR ARCHIVOS..." 
+                      value={fileSearch}
+                      onChange={(e) => setFileSearch(e.target.value)}
+                      className="bg-white/5 border border-white/10 rounded-xl py-2 pl-10 pr-4 text-[10px] font-black text-white focus:outline-none focus:border-primary/40 focus:bg-white/[0.08] transition-all w-48"
+                    />
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-text/20 group-focus-within:text-primary transition-colors" size={14} />
+                  </div>
+                  <button onClick={fetchFiles} className="text-text/20 hover:text-primary transition-colors p-2 bg-white/5 rounded-xl border border-white/10">
+                    <RefreshCw size={18} className={loadingFiles ? 'animate-spin' : ''} />
+                  </button>
+                </div>
               </div>
 
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-6">
-                {files.length > 0 ? files.map((file) => (
+                {filteredFiles.length > 0 ? filteredFiles.map((file) => (
                   <div key={file.name} className="group relative aspect-square glass-card rounded-2xl overflow-hidden shadow-xl">
                     {file.name.match(/\.(mp4|webm|ogg)$/i) ? (
                       <div className="w-full h-full bg-surface flex items-center justify-center">

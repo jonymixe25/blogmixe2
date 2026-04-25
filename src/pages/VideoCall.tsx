@@ -16,9 +16,12 @@ import {
   Minimize2,
   Users,
   Loader2,
-  X
+  X,
+  Zap,
+  Shield,
+  Activity
 } from 'lucide-react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, Link } from 'react-router-dom';
 import { auth, db } from '../lib/firebase';
 import { 
   doc, 
@@ -50,11 +53,22 @@ export default function VideoCall() {
   const [callStatus, setCallStatus] = useState<'requesting' | 'connecting' | 'active' | 'ended'>('connecting');
   const [isMuted, setIsMuted] = useState(false);
   const [isVideoOff, setIsVideoOff] = useState(false);
+  const [callTime, setCallTime] = useState(0);
   
   const pc = useRef<RTCPeerConnection | null>(null);
   const localVideoRef = useRef<HTMLVideoElement>(null);
   const remoteVideoRef = useRef<HTMLVideoElement>(null);
   const isMounted = useRef(true);
+
+  useEffect(() => {
+    let interval: any;
+    if (callStatus === 'active') {
+      interval = setInterval(() => {
+        setCallTime(prev => prev + 1);
+      }, 1000);
+    }
+    return () => clearInterval(interval);
+  }, [callStatus]);
 
   useEffect(() => {
     isMounted.current = true;
@@ -209,7 +223,13 @@ export default function VideoCall() {
       await updateDoc(doc(db, 'calls', callId), { status: 'ended' });
     }
     localStream?.getTracks().forEach(t => t.stop());
-    navigate('/');
+    navigate('/feed');
+  };
+
+  const formatTime = (s: number) => {
+    const mins = Math.floor(s / 60);
+    const secs = s % 60;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
   const toggleMute = () => {
@@ -223,29 +243,46 @@ export default function VideoCall() {
   };
 
   return (
-    <div className="fixed inset-0 bg-black z-[1000] flex flex-col pt-12">
-      {/* Remote Video (Background) */}
-      <div className="flex-1 relative overflow-hidden bg-white/[0.02]">
-        {remoteStream ? (
-          <video 
-            ref={remoteVideoRef} 
-            autoPlay 
-            playsInline 
-            className="w-full h-full object-cover"
-          />
-        ) : (
-          <div className="absolute inset-0 flex flex-col items-center justify-center space-y-6">
-            <div className="w-24 h-24 rounded-full bg-primary/20 flex items-center justify-center animate-pulse">
-              <Users className="text-primary" size={40} />
-            </div>
-            <p className="text-text/40 font-black uppercase tracking-[0.3em] text-xs">
-              {callId ? 'Conectando...' : 'Esperando respuesta...'}
-            </p>
-          </div>
-        )}
+    <div className="fixed inset-0 bg-black z-[1000] flex flex-col overflow-hidden selection:bg-primary selection:text-background font-sans">
+      {/* Cinematic Background Grain Effect */}
+      <div className="absolute inset-0 opacity-[0.03] pointer-events-none mix-blend-overlay z-50 bg-[url('https://grainy-gradients.vercel.app/noise.svg')]" />
 
-        {/* Local Video Overlay */}
-        <div className="absolute bottom-24 right-8 w-48 h-64 rounded-3xl overflow-hidden shadow-2xl border-2 border-white/10 glass">
+      {/* Remote Video (Full Screen) */}
+      <div className="flex-1 relative overflow-hidden bg-[#050505]">
+        <AnimatePresence>
+          {remoteStream ? (
+            <motion.video 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              ref={remoteVideoRef} 
+              autoPlay 
+              playsInline 
+              className="w-full h-full object-cover"
+            />
+          ) : (
+            <div className="absolute inset-0 flex flex-col items-center justify-center">
+               <div className="relative">
+                  <div className="absolute inset-0 bg-primary/20 blur-[60px] animate-pulse rounded-full" />
+                  <div className="w-40 h-40 rounded-full glass flex items-center justify-center border border-white/10 relative z-10">
+                     <Users className="text-primary animate-pulse" size={48} />
+                  </div>
+               </div>
+               <div className="mt-12 text-center space-y-4 relative z-10">
+                 <h2 className="text-3xl font-black italic uppercase tracking-tighter text-white">Transmisión Segura</h2>
+                 <p className="text-[10px] font-black uppercase tracking-[0.4em] text-text/40 animate-pulse">
+                   {callId ? 'SINCRONIZANDO SEÑAL...' : 'ESPERANDO RESPUESTA DEL CANAL...'}
+                 </p>
+               </div>
+            </div>
+          )}
+        </AnimatePresence>
+
+        {/* Local Video Overlay (Picture-in-Picture) */}
+        <motion.div 
+          initial={{ scale: 0.8, opacity: 0, x: 20 }}
+          animate={{ scale: 1, opacity: 1, x: 0 }}
+          className="absolute bottom-12 right-12 w-64 h-80 rounded-[40px] overflow-hidden shadow-2xl border border-white/10 glass z-40 transform hover:scale-105 transition-transform"
+        >
           <video 
             ref={localVideoRef} 
             autoPlay 
@@ -254,57 +291,77 @@ export default function VideoCall() {
             className={`w-full h-full object-cover ${isVideoOff ? 'hidden' : ''}`}
           />
           {isVideoOff && (
-            <div className="w-full h-full flex items-center justify-center bg-background">
+            <div className="w-full h-full flex flex-col items-center justify-center bg-zinc-950 gap-4">
               <VideoOff className="text-text/20" size={32} />
+              <span className="text-[8px] font-black uppercase text-text/20 tracking-widest">Cámara Off</span>
             </div>
           )}
+          <div className="absolute top-4 left-4 glass-dark px-3 py-1 rounded-full text-[8px] font-black uppercase text-white tracking-widest border border-white/5">
+             Preview
+          </div>
+        </motion.div>
+
+        {/* Dynamic Watermark / Info */}
+        <div className="absolute top-12 left-12 flex flex-col gap-6 z-40">
+           <div className="glass-dark px-6 py-4 rounded-3xl border border-white/5 backdrop-blur-3xl flex items-center gap-6">
+              <div className="flex items-center gap-3">
+                 <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse shadow-[0_0_10px_rgba(239,68,68,0.5)]" />
+                 <span className="text-[10px] font-black uppercase tracking-[0.2em] text-white">Live Stream</span>
+              </div>
+              <div className="h-6 w-px bg-white/10" />
+              <div className="flex items-center gap-3 text-white/60">
+                 <Activity size={14} className="text-primary" />
+                 <span className="text-[10px] font-black tracking-widest uppercase font-mono">{formatTime(callTime)}</span>
+              </div>
+           </div>
+           
+           <div className="flex gap-3">
+              <div className="glass-dark p-3 rounded-2xl border border-white/5 flex items-center gap-3">
+                 <Shield size={14} className="text-emerald-500" />
+                 <span className="text-[8px] font-black uppercase text-emerald-500/80 tracking-widest">Encriptado P2P</span>
+              </div>
+           </div>
         </div>
       </div>
 
-      {/* Controls */}
+      {/* Controls Bar */}
       <motion.div 
-        initial={{ y: 100 }}
+        initial={{ y: 200 }}
         animate={{ y: 0 }}
-        className="h-32 bg-background/80 backdrop-blur-xl border-t border-white/5 flex items-center justify-center gap-6 px-8"
+        className="h-40 bg-zinc-950/80 backdrop-blur-3xl border-t border-white/5 flex items-center justify-center gap-8 px-12 pb-8 relative"
       >
         <button 
           onClick={toggleMute}
-          className={`w-14 h-14 rounded-2xl flex items-center justify-center transition-all ${isMuted ? 'bg-red-500 text-white' : 'bg-white/5 text-text hover:bg-white/10'}`}
+          className={`w-18 h-18 rounded-3xl flex items-center justify-center transition-all ${isMuted ? 'bg-red-500 text-white shadow-lg shadow-red-500/20' : 'bg-white/5 text-text hover:bg-white/10 border border-white/5'}`}
         >
           {isMuted ? <MicOff size={24} /> : <Mic size={24} />}
         </button>
 
         <button 
           onClick={endCall}
-          className="w-20 h-14 rounded-3xl bg-red-500 hover:bg-red-600 text-white flex items-center justify-center transition-all shadow-2xl shadow-red-500/20"
+          className="group relative w-32 h-20 rounded-[35px] bg-red-500 hover:bg-red-600 text-white flex items-center justify-center transition-all shadow-3xl shadow-red-500/30 overflow-hidden"
         >
-          <PhoneOff size={24} />
+          <div className="absolute inset-0 bg-white/10 translate-y-full group-hover:translate-y-0 transition-transform duration-500" />
+          <PhoneOff size={32} className="relative z-10" />
         </button>
 
         <button 
           onClick={toggleVideo}
-          className={`w-14 h-14 rounded-2xl flex items-center justify-center transition-all ${isVideoOff ? 'bg-red-500 text-white' : 'bg-white/5 text-text hover:bg-white/10'}`}
+          className={`w-18 h-18 rounded-3xl flex items-center justify-center transition-all ${isVideoOff ? 'bg-red-500 text-white shadow-lg shadow-red-500/20' : 'bg-white/5 text-text hover:bg-white/10 border border-white/5'}`}
         >
           {isVideoOff ? <VideoOff size={24} /> : <Video size={24} />}
         </button>
-      </motion.div>
 
-      {/* Header Info */}
-      <div className="absolute top-0 left-0 right-0 p-8 flex justify-between items-center pointer-events-none">
-        <div className="pointer-events-auto">
-          <div className="flex items-center gap-4 bg-black/40 backdrop-blur-md p-3 px-5 rounded-2xl border border-white/5">
-            <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
-            <span className="text-[10px] font-black uppercase tracking-[0.2em] text-white">Llamada 1:1 En Vivo</span>
-          </div>
+        <div className="absolute right-12 top-1/2 -translate-y-1/2 hidden md:block">
+           <div className="flex items-center gap-4 glass px-6 py-4 rounded-3xl border border-white/5">
+              <Zap size={16} className="text-primary" />
+              <div className="flex flex-col">
+                 <span className="text-[9px] font-black uppercase text-white/40 tracking-widest">Calidad de Señal</span>
+                 <span className="text-[10px] font-black uppercase text-primary tracking-tighter italic">Ultra HD @60fps</span>
+              </div>
+           </div>
         </div>
-        
-        <button 
-          onClick={endCall}
-          className="pointer-events-auto w-10 h-10 rounded-full bg-white/5 flex items-center justify-center hover:bg-white/10 text-white"
-        >
-          <X size={20} />
-        </button>
-      </div>
+      </motion.div>
     </div>
   );
 }

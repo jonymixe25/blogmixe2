@@ -4,24 +4,24 @@
  */
 
 import React, { useState, useRef } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
+import { useNavigate, Link } from 'react-router-dom';
 import { 
+  Plus, 
   Upload, 
   X, 
-  Video, 
   Image as ImageIcon, 
-  CheckCircle2, 
-  AlertCircle,
-  ArrowLeft,
+  Video, 
+  AlertCircle, 
+  ArrowLeft, 
   Loader2,
-  Plus,
   Sparkles,
-  Wand2
+  Wand2,
+  CheckCircle2,
+  Info
 } from 'lucide-react';
 import { useUser } from '../context/UserContext';
 import { useIsMobile } from '../hooks/useIsMobile';
-
 import { db, auth } from '../lib/firebase';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { GoogleGenAI } from '@google/genai';
@@ -40,22 +40,48 @@ export default function Publish() {
   const [title, setTitle] = useState('');
   const [category, setCategory] = useState('Tendencias');
   const [suggesting, setSuggesting] = useState(false);
+  const [dragActive, setDragActive] = useState(false);
   
   const fileInputRef = useRef<HTMLInputElement>(null);
-
   const categories = ['Tendencias', 'Cultura', 'Música', 'Gaming', 'Arte', 'Vlogs'];
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0];
-    if (selectedFile) {
-      setFile(selectedFile);
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setPreview(reader.result as string);
-      };
-      reader.readAsDataURL(selectedFile);
-      setStatus('idle');
-      setProgress(0);
+    if (selectedFile) processFile(selectedFile);
+  };
+
+  const processFile = (selectedFile: File) => {
+    if (selectedFile.size > 50 * 1024 * 1024) {
+      setStatus('error');
+      setMessage('El archivo es demasiado grande (máx 50MB)');
+      return;
+    }
+    setFile(selectedFile);
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setPreview(reader.result as string);
+    };
+    reader.readAsDataURL(selectedFile);
+    setStatus('idle');
+    setProgress(0);
+  };
+
+  const handleDrag = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.type === "dragenter" || e.type === "dragover") {
+      setDragActive(true);
+    } else if (e.type === "dragleave") {
+      setDragActive(false);
+    }
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragActive(false);
+    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+      processFile(e.dataTransfer.files[0]);
     }
   };
 
@@ -71,10 +97,6 @@ export default function Publish() {
       const formData = new FormData();
       formData.append('file', file);
 
-      // Log full URL for debugging
-      console.log('Starting upload to:', window.location.origin + '/api/upload');
-
-      // We'll use XMLHttpRequest for progress tracking
       const xhr = new XMLHttpRequest();
       
       xhr.upload.addEventListener('progress', (event) => {
@@ -85,14 +107,12 @@ export default function Publish() {
       });
 
       xhr.addEventListener('load', async () => {
-        console.log('Upload finished with status:', xhr.status);
         if (xhr.status >= 200 && xhr.status < 300) {
           try {
             const response = JSON.parse(xhr.responseText);
             const localUrl = response.path;
             
             try {
-              // Save record to Firestore (still using Firestore for metadata sync)
               await addDoc(collection(db, 'posts'), {
                 userId: auth.currentUser!.uid,
                 userName: user?.fullName || 'Usuario',
@@ -106,20 +126,18 @@ export default function Publish() {
               });
 
               setStatus('success');
-              setMessage('¡Publicación exitosa! Guardado en almacenamiento local.');
+              setMessage('¡Publicación exitosa! Guardado en disco local.');
               setFile(null);
               setPreview(null);
-              
-              setTimeout(() => navigate('/profile'), 1500);
+              setTimeout(() => navigate('/profile'), 2000);
             } catch (err) {
               console.error("Firestore error:", err);
               setStatus('error');
-              setMessage('Archivo subido localmente, pero hubo un error al sincronizar con la nube.');
+              setMessage('Subido localmente, pero falló la sincronización con la nube.');
             } finally {
               setUploading(false);
             }
           } catch (e) {
-            console.error("Parse error:", e);
             setStatus('error');
             setMessage('Error al procesar la respuesta del servidor.');
             setUploading(false);
@@ -130,9 +148,8 @@ export default function Publish() {
             const errorRes = JSON.parse(xhr.responseText);
             if (errorRes.error) errorMsg = errorRes.error;
           } catch (e) {}
-          
           setStatus('error');
-          setMessage(`${errorMsg} (Status: ${xhr.status})`);
+          setMessage(`${errorMsg} (Estado: ${xhr.status})`);
           setUploading(false);
         }
       });
@@ -147,7 +164,6 @@ export default function Publish() {
       xhr.send(formData);
 
     } catch (error) {
-      console.error("Critical upload error:", error);
       setStatus('error');
       setMessage('Error crítico durante la subida.');
       setUploading(false);
@@ -156,19 +172,14 @@ export default function Publish() {
 
   const suggestTitle = async () => {
     if (!category || suggesting) return;
-    
     setSuggesting(true);
     try {
       const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || '' });
-      const response = await ai.models.generateContent({
-        model: "gemini-3-flash-preview",
-        contents: `Suggest 3 unique, creative, and catchy titles for a ${category} post on a modern, viral art/lifestyle app. Spanish preferred. Give only the titles, separated by commas.`,
-      });
-      
-      const suggestions = response.text?.split(',') || [];
-      if (suggestions.length > 0) {
-        setTitle(suggestions[0].trim().replace(/['"]/g, ''));
-      }
+      const model = ai.getGenerativeModel({ model: "gemini-3-flash-preview" });
+      const prompt = `Sugiere un título corto, viral y creativo para un post de la categoría "${category}" en una app de estilo de vida mixe. Solo dame el título, sin comillas ni explicaciones.`;
+      const result = await model.generateContent(prompt);
+      const text = result.response.text().trim();
+      if (text) setTitle(text);
     } catch (err) {
       console.error("Gemini error:", err);
     } finally {
@@ -179,224 +190,266 @@ export default function Publish() {
   if (!user || !user.isLoggedIn) {
      return (
        <div className="min-h-screen bg-background flex items-center justify-center p-6">
-         <div className="glass p-10 text-center max-w-sm">
-           <AlertCircle className="mx-auto mb-4 text-primary" size={48} />
-           <h2 className="text-xl font-bold mb-4">Inicia sesión</h2>
-           <p className="text-text/50 mb-6">Debes estar registrado para publicar contenido.</p>
-           <Link to="/" className="btn-primary inline-block">Ir al Inicio</Link>
-         </div>
+         <motion.div 
+           initial={{ opacity: 0, scale: 0.9 }}
+           animate={{ opacity: 1, scale: 1 }}
+           className="glass p-12 rounded-[40px] text-center max-w-md w-full border border-white/5"
+         >
+           <AlertCircle className="mx-auto mb-6 text-primary" size={64} />
+           <h2 className="text-3xl font-black uppercase text-white mb-4 tracking-tighter">Acceso Restringido</h2>
+           <p className="text-text/40 mb-10 font-bold uppercase tracking-widest text-[10px]">Debes ser miembro para publicar contenido.</p>
+           <Link to="/register" className="btn-primary w-full py-5">Registrarse Ahora</Link>
+         </motion.div>
        </div>
      );
   }
 
   return (
-    <div className="min-h-screen bg-background p-6 md:p-16 md:pl-32 lg:pl-80 overflow-x-hidden relative">
-      <div className="absolute top-0 right-0 w-[40vw] h-[40vw] bg-primary/5 blur-[120px] rounded-full pointer-events-none" />
-      
-      <div className="max-w-4xl mx-auto relative z-10">
-        <header className="mb-16">
-          <Link to="/profile" className="inline-flex items-center gap-3 text-text/30 hover:text-primary transition-all mb-8 group">
-            <ArrowLeft size={16} className="group-hover:-translate-x-1 transition-transform" />
-            <span className="font-black text-[10px] uppercase tracking-[0.2em]">Volver al Perfil</span>
-          </Link>
-          <h1 className="text-5xl md:text-7xl font-display font-black tracking-tighter text-white uppercase mb-4 leading-none">
-            Crear <br />
-            <span className="text-primary">Nueva Obra</span>
-          </h1>
-          <p className="text-text/30 font-bold uppercase tracking-[0.3em] text-[10px]">Comparte tu visión con el mundo</p>
+    <div className="min-h-screen pt-24 pb-32 px-4 sm:px-8 bg-background relative overflow-hidden">
+      {/* Decorative Blur */}
+      <div className="fixed top-0 right-0 w-[500px] h-[500px] bg-primary/5 blur-[120px] rounded-full -translate-y-1/2 translate-x-1/2 pointer-events-none" />
+      <div className="fixed bottom-0 left-0 w-[300px] h-[300px] bg-accent/5 blur-[100px] rounded-full translate-y-1/2 -translate-x-1/2 pointer-events-none" />
+
+      <div className="max-w-6xl mx-auto relative z-10">
+        <header className="mb-12 flex flex-col md:flex-row justify-between items-start md:items-end gap-6">
+          <div className="space-y-6">
+             <Link to="/feed" className="inline-flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.3em] text-text/40 hover:text-white transition-all group">
+              <ArrowLeft size={16} className="group-hover:-translate-x-1 transition-transform" />
+              Volver al Feed
+            </Link>
+            <div className="flex items-center gap-4 mb-2">
+              <div className="w-12 h-0.5 bg-primary rounded-full" />
+              <span className="section-label mb-0 text-primary">Content Creation House</span>
+            </div>
+            <h1 className="text-7xl md:text-9xl font-black italic uppercase tracking-tighter text-white leading-[0.75] mb-0">
+               Crear <br />
+               <span className="text-primary not-italic">Viral</span>
+            </h1>
+          </div>
+          
+          <div className="glass p-2 rounded-3xl hidden lg:block">
+            <div className="bg-white/[0.03] p-6 rounded-2xl border border-white/5 max-w-[240px]">
+              <div className="flex items-center gap-3 mb-3">
+                <Info size={16} className="text-primary" />
+                <span className="text-[10px] font-black uppercase text-white/80 tracking-widest">Almacenamiento Local</span>
+              </div>
+              <p className="text-[9px] font-bold text-text/40 leading-relaxed uppercase tracking-wider">
+                Tus archivos se guardan en el servidor local independiente de la nube para máxima persistencia.
+              </p>
+            </div>
+          </div>
         </header>
 
-        <motion.div 
-          initial={{ opacity: 0, y: 30 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="glass p-1 items-start"
-        >
-          <form onSubmit={handleUpload} className="p-8 md:p-12 space-y-12">
-            <div className="grid md:grid-cols-2 gap-12">
-              <div 
-                onClick={() => fileInputRef.current?.click()}
-                className={`relative border-2 border-dashed rounded-[40px] p-8 text-center transition-all duration-500 cursor-pointer group flex flex-col items-center justify-center min-h-[350px] shadow-2xl ${
-                  file ? 'border-primary/40 bg-primary/[0.02]' : 'border-white/5 bg-white/[0.01] hover:border-primary/20 hover:bg-white/[0.03]'
-                }`}
-              >
-                <input 
-                  type="file" 
-                  className="hidden" 
-                  ref={fileInputRef}
-                  onChange={handleFileChange}
-                  accept="video/*,image/*"
-                />
-
-                <AnimatePresence mode="wait">
-                  {preview ? (
-                    <motion.div 
-                      key="preview"
-                      initial={{ opacity: 0, scale: 0.95 }}
-                      animate={{ opacity: 1, scale: 1 }}
-                      exit={{ opacity: 0, scale: 0.95 }}
-                      className="relative w-full h-full flex flex-col items-center"
-                    >
-                      {file?.type.startsWith('video') ? (
-                        <video src={preview} className="w-full max-h-[300px] object-contain rounded-3xl shadow-[0_20px_50px_rgba(0,0,0,0.5)]" controls />
-                      ) : (
-                        <img src={preview} className="w-full max-h-[300px] object-contain rounded-3xl shadow-[0_20px_50px_rgba(0,0,0,0.5)]" alt="Preview" />
-                      )}
-                      
-                      <div className="mt-6 flex flex-col items-center">
-                        <span className="text-[10px] font-black uppercase tracking-widest text-primary mb-1">Archivo seleccionado</span>
-                        <span className="text-text/30 text-[9px] truncate max-w-[200px]">{file?.name}</span>
-                      </div>
-
-                      <button 
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setFile(null);
-                          setPreview(null);
-                        }}
-                        className="absolute -top-4 -right-4 w-12 h-12 bg-red-500 text-white rounded-full flex items-center justify-center shadow-2xl hover:scale-110 active:scale-95 transition-all z-20 border-4 border-background"
-                      >
-                        <X size={20} />
-                      </button>
-                    </motion.div>
+        <form onSubmit={handleUpload} className="grid lg:grid-cols-12 gap-12">
+          {/* Upload Box */}
+          <motion.div 
+            initial={{ opacity: 0, x: -20 }}
+            animate={{ opacity: 1, x: 0 }}
+            className="lg:col-span-12 xl:col-span-7"
+          >
+            <div 
+              onDragEnter={handleDrag}
+              onDragLeave={handleDrag}
+              onDragOver={handleDrag}
+              onDrop={handleDrop}
+              className={`
+                relative aspect-[4/5] sm:aspect-video xl:aspect-square rounded-[60px] border-2 border-dashed transition-all duration-700 overflow-hidden group
+                ${dragActive ? 'border-primary bg-primary/5' : 'border-white/5 hover:border-white/10 bg-white/[0.01]'}
+                ${preview ? 'border-none' : ''}
+              `}
+            >
+              {preview ? (
+                <div className="w-full h-full relative">
+                  {file?.type.startsWith('video') ? (
+                    <video src={preview} className="w-full h-full object-cover" autoPlay muted loop />
                   ) : (
-                    <motion.div 
-                      key="prompt"
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      className="space-y-6 flex flex-col items-center"
-                    >
-                      <div className="w-20 h-20 bg-white/[0.03] border border-white/5 rounded-[24px] mx-auto flex items-center justify-center group-hover:scale-110 group-hover:border-primary/20 group-hover:bg-primary/5 transition-all duration-500 shadow-2xl">
-                        <Plus className="text-primary" size={32} />
-                      </div>
-                      <div className="text-center">
-                        <p className="font-display font-black text-white uppercase tracking-wider mb-1">Seleccionar Contenido</p>
-                        <p className="text-text/20 text-[9px] font-bold uppercase tracking-widest leading-loose">Solo archivos de alta calidad<br />JPG, PNG, MP4 hasta 50MB</p>
-                      </div>
-                      <div className="flex justify-center gap-4 pt-4">
-                        <div className="p-3 bg-white/[0.02] rounded-xl border border-white/5"><Video size={16} className="text-text/30" /></div>
-                        <div className="p-3 bg-white/[0.02] rounded-xl border border-white/5"><ImageIcon size={16} className="text-text/30" /></div>
-                      </div>
-                    </motion.div>
+                    <img src={preview} alt="Preview" className="w-full h-full object-cover" />
                   )}
-                </AnimatePresence>
-              </div>
-
-              <div className="space-y-10 flex flex-col justify-center">
-                <div className="space-y-4">
-                  <div className="flex justify-between items-center mb-1">
-                    <label className="section-label mb-0">Título de la publicación</label>
+                  <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-all flex items-center justify-center backdrop-blur-sm">
                     <button 
                       type="button" 
-                      onClick={suggestTitle}
-                      disabled={suggesting}
-                      className="flex items-center gap-2 text-[9px] font-black uppercase tracking-[0.2em] text-primary hover:text-white transition-colors bg-primary/5 px-3 py-1.5 rounded-full border border-primary/10"
+                      onClick={() => { setFile(null); setPreview(null); }}
+                      className="p-6 bg-red-500 text-white rounded-full hover:scale-110 active:scale-95 transition-all shadow-3xl"
                     >
-                      {suggesting ? (
-                        <Loader2 size={12} className="animate-spin text-primary" />
-                      ) : (
-                        <Wand2 size={12} className="text-primary" />
-                      )}
-                      <span>Mejorar con IA</span>
+                      <Plus className="rotate-45" size={32} />
                     </button>
                   </div>
-                  <input 
-                    type="text"
-                    required
-                    maxLength={100}
-                    value={title}
-                    onChange={(e) => setTitle(e.target.value)}
-                    placeholder="Dale un nombre a tu obra..."
-                    className="input-field rounded-[20px] bg-white/[0.01] border-white/5 shadow-inner"
-                  />
-                </div>
-
-                <div className="space-y-4">
-                  <label className="section-label">Seleccionar Categoría</label>
-                  <div className="grid grid-cols-2 gap-3">
-                    {categories.map((cat) => (
-                      <button
-                        key={cat}
-                        type="button"
-                        onClick={() => setCategory(cat)}
-                        className={`py-3 px-4 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all border ${
-                          category === cat 
-                            ? 'bg-primary text-background border-primary shadow-[0_0_20px_rgba(190,242,100,0.1)]' 
-                            : 'bg-white/[0.01] text-text/30 border-white/5 hover:border-white/10'
-                        }`}
-                      >
-                        {cat}
-                      </button>
-                    ))}
+                  <div className="absolute bottom-10 left-10 right-10 flex justify-between items-end">
+                    <div className="glass p-4 rounded-3xl backdrop-blur-xl border border-white/10">
+                      <p className="text-[10px] font-black text-white/50 uppercase tracking-widest mb-1">Archivo:</p>
+                      <p className="text-[12px] font-black text-white truncate max-w-[200px] uppercase italic tracking-tighter">{file?.name}</p>
+                    </div>
+                    <div className="w-12 h-12 bg-primary rounded-2xl flex items-center justify-center shadow-lg shadow-primary/20">
+                      {file?.type.startsWith('video') ? <Video size={20} /> : <ImageIcon size={20} />}
+                    </div>
                   </div>
                 </div>
-              </div>
-            </div>
-
-            <div className="pt-8 space-y-8">
-              {uploading && (
-                <div className="space-y-4">
-                  <div className="flex justify-between items-end mb-2">
-                    <span className="text-[10px] font-black uppercase tracking-widest text-primary">Subiendo...</span>
-                    <span className="text-[10px] font-black uppercase tracking-widest text-text/30">{Math.round(progress)}%</span>
-                  </div>
-                  <div className="w-full bg-white/[0.02] rounded-full h-3 overflow-hidden border border-white/5 relative">
-                    <motion.div 
-                      className="bg-primary h-full absolute top-0 left-0"
-                      initial={{ width: 0 }}
-                      animate={{ width: `${progress}%` }}
-                      transition={{ type: 'spring', damping: 20 }}
-                    />
+              ) : (
+                <div 
+                  onClick={() => fileInputRef.current?.click()}
+                  className="absolute inset-0 flex flex-col items-center justify-center p-12 cursor-pointer"
+                >
+                  <motion.div 
+                    animate={dragActive ? { scale: 1.2, rotate: 10 } : { scale: 1, rotate: 0 }}
+                    className="w-40 h-40 bg-white/[0.03] rounded-full flex items-center justify-center mb-10 group-hover:scale-110 transition-transform duration-500 border border-white/5 relative"
+                  >
+                    <Upload className={`text-text/20 transition-all ${dragActive ? 'text-primary' : ''}`} size={48} />
+                    {dragActive && <div className="absolute inset-0 rounded-full border-4 border-primary animate-ping opacity-20" />}
+                  </motion.div>
+                  <h3 className="text-4xl font-black uppercase text-white mb-4 tracking-tighter italic">Soltar Archivo</h3>
+                  <p className="text-[10px] font-black text-text/30 uppercase tracking-[0.4em] max-w-xs text-center leading-loose">
+                    Imágenes o videos hasta 50MB. <br />
+                    Formatos recomendados: MP4, JPEG, PNG.
+                  </p>
+                  <div className="mt-12 px-8 py-4 bg-primary text-background text-[10px] font-black uppercase tracking-widest rounded-full hover:scale-105 active:scale-95 transition-all shadow-2xl shadow-primary/20">
+                    Elegir de mi disco
                   </div>
                 </div>
               )}
-
-              <AnimatePresence>
-                {status === 'success' && (
-                  <motion.div 
-                    initial={{ opacity: 0, scale: 0.95 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    exit={{ opacity: 0, scale: 0.95 }}
-                    className="bg-primary/10 border border-primary/20 text-primary p-6 rounded-3xl flex items-center gap-4 shadow-2xl"
-                  >
-                    <CheckCircle2 size={24} />
-                    <span className="text-xs font-black uppercase tracking-widest leading-none">{message}</span>
-                  </motion.div>
-                )}
-
-                {status === 'error' && (
-                  <motion.div 
-                    initial={{ opacity: 0, scale: 0.95 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    exit={{ opacity: 0, scale: 0.95 }}
-                    className="bg-red-500/10 border border-red-500/20 text-red-500 p-6 rounded-3xl flex items-center gap-4 shadow-2xl"
-                  >
-                    <AlertCircle size={24} />
-                    <span className="text-xs font-black uppercase tracking-widest leading-none">{message}</span>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-
-              <button
-                type="submit"
-                disabled={!file || uploading}
-                className="btn-primary w-full py-6 flex items-center justify-center gap-4 shadow-2xl relative overflow-hidden group"
-              >
-                {uploading ? (
-                  <>
-                    <Loader2 className="animate-spin" size={24} />
-                    <span className="tracking-[0.2em]">PROCESANDO...</span>
-                  </>
-                ) : (
-                  <>
-                    <Upload size={20} className="group-hover:-translate-y-1 transition-transform" />
-                    <span className="tracking-[0.2em] text-sm">PUBLICAR AHORA</span>
-                  </>
-                )}
-              </button>
+              <input 
+                type="file" 
+                ref={fileInputRef} 
+                onChange={handleFileChange} 
+                className="hidden" 
+                accept="image/*,video/*" 
+              />
             </div>
-          </form>
-        </motion.div>
+          </motion.div>
+
+          {/* Details Form */}
+          <motion.div 
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            className="lg:col-span-12 xl:col-span-5 flex flex-col gap-8"
+          >
+            <div className="glass p-1 rounded-[60px]">
+              <div className="p-10 md:p-14 md:pt-16">
+                <div className="space-y-12">
+                  {/* Title Section */}
+                  <div className="space-y-4">
+                    <div className="flex justify-between items-center px-2">
+                       <label className="section-label mb-0">Título Viral</label>
+                       <button 
+                        type="button" 
+                        onClick={suggestTitle}
+                        disabled={suggesting}
+                        className="flex items-center gap-2 text-[9px] font-black uppercase tracking-[0.2em] text-primary hover:text-white transition-all bg-primary/5 px-4 py-2 rounded-full border border-primary/10 hover:border-primary/40"
+                       >
+                         {suggesting ? <Loader2 size={12} className="animate-spin" /> : <Wand2 size={12} />}
+                         <span>{suggesting ? 'Generando...' : 'Optimizar con IA'}</span>
+                       </button>
+                    </div>
+                    <input 
+                      type="text"
+                      required
+                      placeholder="Escribe algo impactante..."
+                      value={title}
+                      onChange={(e) => setTitle(e.target.value)}
+                      className="input-field py-6 px-8 rounded-3xl bg-white/[0.01] border-white/5 shadow-2xl text-xl font-bold italic uppercase tracking-tighter"
+                    />
+                  </div>
+
+                  {/* Category Selection */}
+                  <div className="space-y-6">
+                    <label className="section-label px-2">Seleccionar Categoría</label>
+                    <div className="grid grid-cols-2 gap-4">
+                      {categories.map((cat) => (
+                        <button
+                          key={cat}
+                          type="button"
+                          onClick={() => setCategory(cat)}
+                          className={`
+                            py-4 px-6 rounded-2xl text-[10px] font-black uppercase tracking-[0.2em] border transition-all duration-300
+                            ${category === cat 
+                              ? 'bg-primary border-primary text-background shadow-xl shadow-primary/20 scale-105' 
+                              : 'bg-white/[0.02] border-white/5 text-text/40 hover:border-white/10 hover:text-white hover:bg-white/[0.04]'
+                            }
+                          `}
+                        >
+                          {cat}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Submit Area */}
+                  <div className="pt-10 border-t border-white/5">
+                    {uploading ? (
+                      <div className="space-y-6">
+                        <div className="flex justify-between items-end">
+                          <div className="flex flex-col gap-1">
+                            <span className="text-[10px] font-black uppercase tracking-[0.4em] text-primary animate-pulse italic">Publicando contenido</span>
+                            <span className="text-[9px] font-bold text-text/40 uppercase tracking-widest">No cierres esta ventana</span>
+                          </div>
+                          <span className="text-3xl font-black text-white italic font-mono leading-none tracking-tighter">{Math.round(progress)}%</span>
+                        </div>
+                        <div className="h-3 w-full bg-white/5 rounded-full overflow-hidden p-0.5 border border-white/5">
+                          <motion.div 
+                            className="h-full bg-primary rounded-full shadow-lg shadow-primary/40 relative"
+                            initial={{ width: 0 }}
+                            animate={{ width: `${progress}%` }}
+                            transition={{ type: 'spring', damping: 20 }}
+                          >
+                             <div className="absolute top-0 right-0 h-full w-2 bg-white/40 blur-sm" />
+                          </motion.div>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="space-y-6">
+                        <AnimatePresence mode="wait">
+                          {status === 'success' && (
+                            <motion.div 
+                              initial={{ opacity: 0, y: 10 }}
+                              animate={{ opacity: 1, y: 0 }}
+                              className="p-6 rounded-3xl bg-primary/10 border border-primary/20 flex items-center gap-4 text-primary"
+                            >
+                              <CheckCircle2 size={24} />
+                              <div>
+                                <p className="text-[10px] font-black uppercase tracking-[0.2em] mb-0.5">Transmisión Completa</p>
+                                <p className="text-[9px] font-bold opacity-60 uppercase">{message}</p>
+                              </div>
+                            </motion.div>
+                          )}
+                          {status === 'error' && (
+                            <motion.div 
+                              initial={{ opacity: 0, y: 10 }}
+                              animate={{ opacity: 1, y: 0 }}
+                              className="p-6 rounded-3xl bg-red-500/10 border border-red-500/20 flex items-center gap-4 text-red-500"
+                            >
+                              <AlertCircle size={24} />
+                              <div>
+                                <p className="text-[10px] font-black uppercase tracking-[0.2em] mb-0.5">Falló la conexión</p>
+                                <p className="text-[9px] font-bold opacity-60 uppercase">{message}</p>
+                              </div>
+                            </motion.div>
+                          )}
+                        </AnimatePresence>
+
+                        <button 
+                          type="submit"
+                          disabled={!file || !title || uploading}
+                          className="w-full btn-primary py-8 flex items-center justify-center gap-5 text-[14px] disabled:opacity-20 transition-all shadow-3xl shadow-primary/10 group overflow-hidden relative"
+                        >
+                           <Plus size={24} className="group-hover:rotate-90 transition-transform duration-500" />
+                           <span className="relative z-10 lg:tracking-[0.4em]">PUBLICAR AHORA</span>
+                           <motion.div 
+                            className="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-500"
+                           />
+                        </button>
+                        
+                        <div className="flex items-center gap-3 justify-center opacity-30">
+                          <Sparkles size={12} className="text-primary" />
+                          <p className="text-[8px] font-bold uppercase tracking-[0.4em]">Propulsado por SQLite & IA</p>
+                          <Sparkles size={12} className="text-primary" />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </motion.div>
+        </form>
       </div>
     </div>
   );
