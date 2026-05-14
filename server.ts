@@ -13,13 +13,13 @@ import fs from "fs";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-import { GoogleGenAI } from "@google/genai";
+import { GoogleGenerativeAI } from "@google/generative-ai";
 
 const app = express();
 const PORT = 3000;
 
 // Gemini setup
-const genAI = new GoogleGenAI(process.env.GEMINI_API_KEY || "");
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "");
 const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
 // Middleware
@@ -60,18 +60,20 @@ const upload = multer({
   limits: { fileSize: 50 * 1024 * 1024 } // 50MB limit
 });
 
-// API routes
-app.get("/api/ping", (req, res) => {
-  res.json({ message: "pong", status: "active", time: new Date().toISOString() });
-});
+// API Router
+const apiRouter = express.Router();
 
-app.use("/api", (req, res, next) => {
+apiRouter.use((req, res, next) => {
   console.log(`[API] ${req.method} ${req.url}`);
   next();
 });
 
-app.post("/api/upload", (req, res, next) => {
-  console.log("Receiving upload request...");
+apiRouter.get("/ping", (req, res) => {
+  res.json({ message: "pong", status: "active", time: new Date().toISOString() });
+});
+
+apiRouter.post("/upload", (req, res, next) => {
+  console.log("Processing upload at /api/upload...");
   upload.single("file")(req, res, (err) => {
     if (err instanceof multer.MulterError) {
       console.error("Multer error:", err);
@@ -94,8 +96,7 @@ app.post("/api/upload", (req, res, next) => {
   });
 });
 
-// Local Database Routes
-app.get("/api/local/files", (req, res) => {
+apiRouter.get("/local/files", (req, res) => {
   try {
     const files = fs.readdirSync(uploadsDir);
     const stats = files.map(file => {
@@ -113,7 +114,7 @@ app.get("/api/local/files", (req, res) => {
   }
 });
 
-app.get("/api/local/data", (req, res) => {
+apiRouter.get("/local/data", (req, res) => {
   try {
     const rows = localDb.prepare("SELECT * FROM local_storage ORDER BY updated_at DESC").all();
     res.json(rows);
@@ -122,7 +123,7 @@ app.get("/api/local/data", (req, res) => {
   }
 });
 
-app.post("/api/local/data", (req, res) => {
+apiRouter.post("/local/data", (req, res) => {
   const { key, value } = req.body;
   if (!key || value === undefined) {
     return res.status(400).json({ error: "Key and value are required" });
@@ -136,7 +137,7 @@ app.post("/api/local/data", (req, res) => {
   }
 });
 
-app.delete("/api/local/data/:key", (req, res) => {
+apiRouter.delete("/local/data/:key", (req, res) => {
   const { key } = req.params;
   try {
     const stmt = localDb.prepare("DELETE FROM local_storage WHERE key = ?");
@@ -147,8 +148,7 @@ app.delete("/api/local/data/:key", (req, res) => {
   }
 });
 
-// Gemini Suggestion Route
-app.post("/api/ai/suggest-title", async (req, res) => {
+apiRouter.post("/ai/suggest-title", async (req, res) => {
   const { category } = req.body;
   if (!category) return res.status(400).json({ error: "Category is required" });
 
@@ -163,14 +163,15 @@ app.post("/api/ai/suggest-title", async (req, res) => {
   }
 });
 
-// API 404 Catch-all (to debug why requests fail)
-app.all("/api/*", (req, res) => {
+apiRouter.all("*", (req, res) => {
   console.log(`[404] API Not Found: ${req.method} ${req.url}`);
-  res.status(404).json({ error: `Route ${req.method} ${req.url} not found on this server.` });
+  res.status(404).json({ error: `API route ${req.method} ${req.url} not found` });
 });
 
+app.use("/api", apiRouter);
+
 // Serve static files from uploads
-app.use("/uploads", express.static(path.join(__dirname, "uploads")));
+app.use("/uploads", express.static(uploadsDir));
 
 // Vite middleware for development
 if (process.env.NODE_ENV !== "production") {

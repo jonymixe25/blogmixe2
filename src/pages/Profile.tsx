@@ -74,7 +74,7 @@ export default function Profile() {
         const querySnapshot = await getDocs(q);
         const fetchedPosts = querySnapshot.docs.map(doc => ({
           id: doc.id,
-          ...doc.data()
+          ...(doc.data() as any)
         }));
         setPosts(fetchedPosts);
       } catch (error: any) {

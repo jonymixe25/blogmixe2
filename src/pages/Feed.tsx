@@ -24,39 +24,74 @@ import {
   Globe
 } from 'lucide-react';
 import { db, auth } from '../lib/firebase';
-import { collection, query, orderBy, limit, onSnapshot, doc, updateDoc } from 'firebase/firestore';
+import { collection, query, orderBy, limit, getDocs, doc, updateDoc, startAfter } from 'firebase/firestore';
 import { Link, useNavigate } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
+import { Loader2 } from 'lucide-react';
 
 export default function Feed() {
   const [posts, setPosts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [lastVisible, setLastVisible] = useState<any>(null);
+  const [hasMore, setHasMore] = useState(true);
+  const [fetchingMore, setFetchingMore] = useState(false);
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [searchTerm, setSearchTerm] = useState('');
   const { settings } = useApp();
+  const PAGE_SIZE = 20;
   const navigate = useNavigate();
 
-  useEffect(() => {
-    setLoading(true);
-    const q = query(
-      collection(db, 'posts'),
-      orderBy('createdAt', 'desc'),
-      limit(50)
-    );
+  const fetchPosts = async (initial = false) => {
+    if (initial) {
+      setLoading(true);
+    } else {
+      setFetchingMore(true);
+    }
 
-    const unsub = onSnapshot(q, (snap) => {
-      const fetchedPosts = snap.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      }));
-      setPosts(fetchedPosts);
-      setLoading(false);
-    }, (error) => {
+    try {
+      let q;
+      if (initial) {
+        q = query(
+          collection(db, 'posts'),
+          orderBy('createdAt', 'desc'),
+          limit(PAGE_SIZE)
+        );
+      } else if (lastVisible) {
+        q = query(
+          collection(db, 'posts'),
+          orderBy('createdAt', 'desc'),
+          startAfter(lastVisible),
+          limit(PAGE_SIZE)
+        );
+      }
+
+      if (q) {
+        const querySnapshot = await getDocs(q);
+        const lastDoc = querySnapshot.docs[querySnapshot.docs.length - 1];
+        const fetchedPosts = querySnapshot.docs.map(doc => ({
+          id: doc.id,
+          ...(doc.data() as any)
+        }));
+
+        if (initial) {
+          setPosts(fetchedPosts);
+        } else {
+          setPosts(prev => [...prev, ...fetchedPosts]);
+        }
+
+        setLastVisible(lastDoc);
+        setHasMore(querySnapshot.docs.length === PAGE_SIZE);
+      }
+    } catch (error) {
       console.error("Error fetching feed:", error);
+    } finally {
       setLoading(false);
-    });
+      setFetchingMore(false);
+    }
+  };
 
-    return unsub;
+  useEffect(() => {
+    fetchPosts(true);
   }, []);
 
   const filteredPosts = useMemo(() => {
@@ -398,6 +433,36 @@ export default function Feed() {
               Reiniciar Búsqueda
             </button>
           </motion.div>
+        )}
+
+        {/* Load More Button */}
+        {!loading && posts.length > 0 && hasMore && (
+          <div className="mt-20 flex flex-col items-center gap-6">
+            <button
+              onClick={() => fetchPosts()}
+              disabled={fetchingMore}
+              className="px-12 py-5 glass rounded-full text-[10px] font-black uppercase tracking-[0.4em] text-white/60 hover:text-primary hover:border-primary/40 transition-all flex items-center gap-4 group disabled:opacity-50"
+            >
+              {fetchingMore ? (
+                <>
+                  <Loader2 size={16} className="animate-spin text-primary" />
+                  <span>Sincronizando...</span>
+                </>
+              ) : (
+                <>
+                  <Sparkles size={16} className="group-hover:rotate-12 transition-transform" />
+                  <span>Cargar más contenido</span>
+                </>
+              )}
+            </button>
+            <p className="text-[8px] font-bold text-text/20 uppercase tracking-[0.5em]">Mostrando {posts.length} resultados</p>
+          </div>
+        )}
+
+        {!loading && posts.length > 0 && !hasMore && (
+          <div className="mt-20 py-20 border-t border-white/5 text-center">
+            <p className="text-[10px] font-black uppercase tracking-[0.5em] text-text/20 italic">Has llegado al final de la transmisión</p>
+          </div>
         )}
       </div>
     </div>
